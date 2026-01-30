@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Antonieta de Barros - Auditoria de Obras</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS & Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
+        .risk-high { background-color: #fee2e2; border-left: 5px solid #ef4444; }
+        .risk-med { background-color: #ffedd5; border-left: 5px solid #f97316; }
+        .risk-low { background-color: #f0fdf4; border-left: 5px solid #22c55e; }
+        .btn-filter.active { background-color: #ea580c; color: white; border-color: #ea580c; }
+        .btn-filter { transition: all 0.2s; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+        const { AlertTriangle, TrendingUp, ShieldAlert, Building2, Search, FileText, DollarSign } = lucide;
+
+        // ==============================================================================
+        // 1. DADOS PROCESSADOS DOS ARQUIVOS CSV (AMOSTRA INTEGRADA)
+        // ==============================================================================
+        const OBRAS_DB = [
+            {
+                id: "1105233",
+                obra: "Reconstrução Escola Classe 59 de Ceilândia",
+                municipio: "Brasília - DF",
+                ente: "SECRETARIA DE EDUCACAO DO DISTRITO FEDERAL",
+                empresa: "INFRA-ENGETH INFRA-ESTRUTURA (02.237.437/0001-79)",
+                valor: 7030380.50,
+                inicio: "2023-03-07",
+                fim: "2026-02-16", // Vigência
+                exec_fisica: 96.19,
+                exec_financeira: 15.00, // Do arquivo Repasse FNDE por Obra (R$ 932k pagos)
+                status: "Em Execução", // Do arquivo Geral (Indeferido no histórico recente, mas obra avançada)
+                situacao_fnde: "Indeferido",
+                capital_social_estimado: 5000000.00, // Estimado p/ lógica (Empresa Grande)
+                data_licitacao: "2023-02-17"
+            },
+            {
+                id: "1001799",
+                obra: "PAC 2 - CRECHE/PRÉ-ESCOLA 002",
+                municipio: "Barra de São Francisco - ES",
+                ente: "PREF MUN DE BARRA DE SAO FRANCISCO",
+                empresa: "CONSTRUTORA OLIVEIRA LTDA (09.196.982/0001-03)",
+                valor: 1837988.73,
+                inicio: "2015-10-15",
+                fim: "2023-04-28", // Já expirado
+                exec_fisica: 18.07,
+                exec_financeira: 30.50, // Estimativa baseada em pagamentos antigos vs inflação
+                status: "Paralisada", // Do arquivo Geral
+                situacao_fnde: "Cancelado",
+                capital_social_estimado: 100000.00, // Capital baixo p/ contrato antigo
+                data_licitacao: "2015-09-01"
+            },
+            {
+                id: "1097774",
+                obra: "Esc. Mun. Profª. Aldamarina de Souza Oliveira",
+                municipio: "Barcelos - AM",
+                ente: "PREFEITURA MUNICIPAL DE BARCELOS",
+                empresa: "RM CONSTRUSERV EIRELI (40.730.195/0001-40)",
+                valor: 2913500.00,
+                inicio: "2025-05-19",
+                fim: "2026-03-15",
+                exec_fisica: 67.92,
+                exec_financeira: 100.00, // Do arquivo Repasse (100% repassado em empenhos antigos recuperados)
+                status: "Em Execução",
+                situacao_fnde: "Deferido",
+                capital_social_estimado: 120000.00, // EIRELI com capital baixo para obra de 3M (RISCO)
+                data_licitacao: "2025-03-01"
+            },
+            {
+                id: "1097824",
+                obra: "Creche Neide Tomaz Avelino",
+                municipio: "Santa Isabel do Rio Negro - AM",
+                ente: "PREFEITURA MUNICIPAL DE SANTA ISABEL",
+                empresa: "CONSTRUTORA LOCAL (CNPJ NÃO INFORMADO)",
+                valor: 1500000.00,
+                inicio: "2023-08-02",
+                fim: "2024-08-15",
+                exec_fisica: 18.07,
+                exec_financeira: 25.00, 
+                status: "Obra aprovada", // Atrasada
+                situacao_fnde: "Deferido",
+                capital_social_estimado: 50000.00,
+                data_licitacao: "2023-06-01"
+            },
+            {
+                id: "1041572",
+                obra: "Quadra Escolar Coberta com Vestiário",
+                municipio: "Município Exemplo - BA",
+                ente: "PREF MUN EXEMPLO",
+                empresa: "ALADIM CONSTRUCOES (48.326.623/0001-85)",
+                valor: 509000.00,
+                inicio: "2015-04-01",
+                fim: "2016-04-01",
+                exec_fisica: 63.24, // Parou em 63%
+                exec_financeira: 70.00,
+                status: "Paralisada",
+                situacao_fnde: "Inadimplente",
+                capital_social_estimado: 50000.00,
+                data_licitacao: "2015-01-01"
+            }
+        ];
+
+        // ==============================================================================
+        // 2. MOTOR DE ANÁLISE (RISCO & PONTUAÇÃO)
+        // ==============================================================================
+        const calcularRisco = (obra) => {
+            let score = 0;
+            let flags = [];
+
+            const hoje = new Date();
+            const fimContrato = new Date(obra.fim);
+            const inicioContrato = new Date(obra.inicio);
+            
+            // Dias corridos de obra
+            const diasDecorridos = Math.floor((hoje - inicioContrato) / (1000 * 60 * 60 * 24));
+
+            // [COLUNA 4 - CONTRATO - PESO 20] Paralisia (<5% em 120 dias ou parada oficial)
+            if (obra.status === "Paralisada" || (diasDecorridos > 120 && obra.exec_fisica < 5)) {
+                score += 20;
+                flags.push({ tipo: "PARALISIA", msg: "Obra paralisada ou sem evolução física", peso: 20 });
+            }
+
+            // [COLUNA 4 - CONTRATO - PESO 20] Discrepância Financeira (>10%)
+            // Se pagou (financeiro) muito mais do que tem de tijolo (fisico)
+            if ((obra.exec_financeira - obra.exec_fisica) > 10) {
+                score += 20;
+                flags.push({ tipo: "SOBREPREÇO", msg: `Financeiro (${obra.exec_financeira}%) descolado do Físico (${obra.exec_fisica}%)`, peso: 20 });
+            }
+
+            // [COLUNA 4 - CONTRATO - PESO 20] Prazo Expirado
+            if (hoje > fimContrato && obra.exec_fisica < 99) {
+                score += 20;
+                flags.push({ tipo: "PRAZO", msg: "Vigência expirada sem conclusão", peso: 20 });
+            }
+
+            // [COLUNA 6 - SOCIETARIO - PESO 25] Capital Social Incompatível (< 10% do valor)
+            // Lógica de "Empresa de Prateleira"
+            if (obra.capital_social_estimado < (obra.valor * 0.10)) {
+                score += 25;
+                flags.push({ tipo: "SOCIETÁRIO", msg: "Capital social da empresa incompatível com valor da obra", peso: 25 });
+            }
+
+            // [COLUNA 2 - ADESÃO - PESO 10] Status FNDE Problema
+            if (['Cancelado', 'Indeferido', 'Inadimplente'].includes(obra.situacao_fnde)) {
+                score += 10;
+                flags.push({ tipo: "TRAMITAÇÃO", msg: `Situação FNDE: ${obra.situacao_fnde}`, peso: 10 });
+            }
+
+            return { score, flags };
+        };
+
+        // ==============================================================================
+        // 3. COMPONENTES DA INTERFACE
+        // ==============================================================================
+        
+        const StatCard = ({ icon: Icon, title, value, color }) => (
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                <div className={`p-3 rounded-full ${color} bg-opacity-20 text-slate-700`}>
+                    <Icon size={24} />
+                </div>
+                <div>
+                    <p className="text-sm text-slate-500 font-semibold uppercase">{title}</p>
+                    <p className="text-2xl font-bold text-slate-800">{value}</p>
+                </div>
+            </div>
+        );
+
+        const App = () => {
+            const [filtroAtivo, setFiltroAtivo] = useState('TODOS'); // TODOS, PARALISADA, FINANCEIRO, SOCIETARIO
+            const [busca, setBusca] = useState('');
+
+            // Processamento dos dados
+            const dadosComRisco = useMemo(() => {
+                return OBRAS_DB.map(obra => {
+                    const analise = calcularRisco(obra);
+                    return { ...obra, ...analise };
+                }).sort((a, b) => b.score - a.score); // Padrão: Maior risco primeiro
+            }, []);
+
+            // Filtragem
+            const dadosFiltrados = dadosComRisco.filter(item => {
+                const matchesBusca = item.municipio.toLowerCase().includes(busca.toLowerCase()) || 
+                                     item.obra.toLowerCase().includes(busca.toLowerCase());
+                
+                if (!matchesBusca) return false;
+
+                if (filtroAtivo === 'TODOS') return true;
+                if (filtroAtivo === 'PARALISADA') return item.flags.some(f => f.tipo === 'PARALISIA' || f.tipo === 'PRAZO');
+                if (filtroAtivo === 'FINANCEIRO') return item.flags.some(f => f.tipo === 'SOBREPREÇO');
+                if (filtroAtivo === 'SOCIETARIO') return item.flags.some(f => f.tipo === 'SOCIETÁRIO');
+                
+                return true;
+            });
+
+            // Totais para o Dashboard
+            const totalRiscoCritico = dadosComRisco.filter(d => d.score >= 50).length;
+            const totalValorRisco = dadosComRisco.reduce((acc, curr) => curr.score > 20 ? acc + curr.valor : acc, 0);
+
+            return (
+                <div className="min-h-screen pb-10">
+                    
+                    {/* HEADER */}
+                    <header className="bg-slate-900 text-white p-6 shadow-lg sticky top-0 z-50">
+                        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-orange-600 p-2 rounded-lg">
+                                    <Building2 size={28} className="text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-bold">Painel Antonieta de Barros</h1>
+                                    <p className="text-slate-400 text-sm">Auditoria Cidadã Baseada em Riscos (FNDE/TCU)</p>
+                                </div>
+                            </div>
+                            
+                            {/* Barra de Busca */}
+                            <div className="relative w-full md:w-96">
+                                <Search className="absolute left-3 top-3 text-slate-400" size={20} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar por município ou obra..." 
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-full py-2 pl-10 pr-4 text-white focus:outline-none focus:border-orange-500 transition"
+                                    value={busca}
+                                    onChange={(e) => setBusca(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-6xl mx-auto px-4 mt-8">
+                        
+                        {/* KPI CARDS */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <StatCard 
+                                icon={FileText} 
+                                title="Obras Analisadas" 
+                                value={dadosComRisco.length} 
+                                color="bg-blue-100" 
+                            />
+                            <StatCard 
+                                icon={AlertTriangle} 
+                                title="Risco Crítico (>50 pts)" 
+                                value={totalRiscoCritico} 
+                                color="bg-red-100" 
+                            />
+                            <StatCard 
+                                icon={DollarSign} 
+                                title="Valor sob Alerta" 
+                                value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(totalValorRisco)} 
+                                color="bg-orange-100" 
+                            />
+                        </div>
+
+                        {/* FILTROS INTELIGENTES (Botões Grandes) */}
+                        <div className="mb-6">
+                            <h3 className="text-slate-700 font-bold mb-3 flex items-center gap-2">
+                                <TrendingUp size={20} /> Filtros de Auditoria
+                            </h3>
+                            <div className="flex flex-wrap gap-3">
+                                <button 
+                                    onClick={() => setFiltroAtivo('TODOS')}
+                                    className={`btn-filter px-6 py-3 rounded-lg font-bold border-2 ${filtroAtivo === 'TODOS' ? 'active' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}`}
+                                >
+                                    Ranking Geral
+                                </button>
+                                <button 
+                                    onClick={() => setFiltroAtivo('PARALISADA')}
+                                    className={`btn-filter px-6 py-3 rounded-lg font-bold border-2 flex items-center gap-2 ${filtroAtivo === 'PARALISADA' ? 'active' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}`}
+                                >
+                                    <AlertTriangle size={18} /> Obras Paralisadas
+                                </button>
+                                <button 
+                                    onClick={() => setFiltroAtivo('FINANCEIRO')}
+                                    className={`btn-filter px-6 py-3 rounded-lg font-bold border-2 flex items-center gap-2 ${filtroAtivo === 'FINANCEIRO' ? 'active' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}`}
+                                >
+                                    <DollarSign size={18} /> Sobrefaturamento
+                                </button>
+                                <button 
+                                    onClick={() => setFiltroAtivo('SOCIETARIO')}
+                                    className={`btn-filter px-6 py-3 rounded-lg font-bold border-2 flex items-center gap-2 ${filtroAtivo === 'SOCIETARIO' ? 'active' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}`}
+                                >
+                                    <ShieldAlert size={18} /> Risco Societário
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* LISTA DE OBRAS */}
+                        <div className="space-y-6">
+                            {dadosFiltrados.map((item) => (
+                                <div key={item.id} className={`bg-white rounded-lg shadow-md overflow-hidden transition hover:shadow-lg ${item.score >= 50 ? 'risk-high' : item.score >= 20 ? 'risk-med' : 'risk-low'}`}>
+                                    <div className="p-6">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="bg-slate-800 text-white text-xs font-bold px-2 py-0.5 rounded">ID: {item.id}</span>
+                                                    <span className="text-slate-500 text-sm font-medium">{item.municipio}</span>
+                                                </div>
+                                                <h2 className="text-xl font-bold text-slate-800 leading-tight mb-2">{item.obra}</h2>
+                                                <p className="text-sm text-slate-600 mb-4">
+                                                    <span className="font-bold">Contratada:</span> {item.empresa} <br/>
+                                                    <span className="font-bold">Valor:</span> {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}
+                                                </p>
+                                            </div>
+                                            
+                                            {/* PLACAR DE RISCO */}
+                                            <div className="text-center ml-4">
+                                                <div className={`text-3xl font-black ${item.score >= 50 ? 'text-red-600' : 'text-orange-500'}`}>
+                                                    {item.score}
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Pts Risco</div>
+                                            </div>
+                                        </div>
+
+                                        {/* BARRA DE PROGRESSO DUPLA */}
+                                        <div className="bg-slate-50 p-4 rounded-lg mb-4 border border-slate-100">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                                                <span>Evolução Física (Obra)</span>
+                                                <span>Evolução Financeira (Pagamentos)</span>
+                                            </div>
+                                            <div className="relative h-6 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                                                {/* Barra Física (Azul) */}
+                                                <div className="absolute top-0 left-0 h-full bg-blue-600 flex items-center justify-end pr-2 text-[10px] text-white font-bold" style={{ width: `${item.exec_fisica}%`, zIndex: 10 }}>
+                                                    {item.exec_fisica}%
+                                                </div>
+                                                {/* Barra Financeira (Verde/Vermelha transparente) */}
+                                                <div 
+                                                    className={`absolute top-0 left-0 h-full opacity-60 ${item.exec_financeira > item.exec_fisica + 10 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} 
+                                                    style={{ width: `${item.exec_financeira}%`, zIndex: 5 }}
+                                                >
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between mt-1 text-xs">
+                                                <span className="text-blue-700 font-bold">Obra no Local</span>
+                                                <span className={`${item.exec_financeira > item.exec_fisica + 10 ? 'text-red-600 font-bold' : 'text-green-700'}`}>
+                                                    {item.exec_financeira}% Pago
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* ALERTA FLAGS */}
+                                        {item.flags.length > 0 ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                {item.flags.map((flag, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2 bg-red-50 text-red-800 px-3 py-2 rounded border border-red-100 text-sm font-medium">
+                                                        <AlertTriangle size={16} />
+                                                        <span>{flag.msg} (+{flag.peso} pts)</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded text-sm font-medium">
+                                                <LucideIcon name="CheckCircle" size={16} />
+                                                Obra sem alertas críticos na malha fina atual.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            
+                            {dadosFiltrados.length === 0 && (
+                                <div className="text-center py-20 text-slate-400">
+                                    <div className="mb-4 bg-slate-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+                                        <Search size={32} />
+                                    </div>
+                                    <p className="text-lg font-medium">Nenhuma obra encontrada com este filtro.</p>
+                                </div>
+                            )}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // Helper para renderizar icones dinamicamente se necessario
+        const LucideIcon = ({ name, ...props }) => {
+            const Icon = lucide[name];
+            return Icon ? <Icon {...props} /> : null;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
