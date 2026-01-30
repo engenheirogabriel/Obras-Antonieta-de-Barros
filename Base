@@ -2,38 +2,465 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RevelaGov - Monitoramento de Obras Públicas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FTC - Transparência Obras Mobile</title>
     
-    <!-- Bibliotecas Core -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Estilização e Ícones -->
+    <!-- Tailwind CSS (Estilo) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons (Ícones) -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Fonte Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <!-- PapaParse (Leitor de CSV Excel/Pt-BR) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #0f172a; color: #e2e8f0; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+        .btn-active { background-color: #ea580c; color: white; border-color: #ea580c; }
+        .risk-high { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+        .risk-med { background: linear-gradient(135deg, #f97316 0%, #c2410c 100%); }
+        .risk-low { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); }
         
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        /* Animação de Carregamento */
+        .spinner { border: 4px solid rgba(255,255,255,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #ea580c; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- HEADER FIXO -->
+    <header class="glass sticky top-0 z-50 px-4 py-3 shadow-xl">
+        <div class="flex justify-between items-center max-w-5xl mx-auto">
+            <div class="flex items-center gap-2">
+                <i data-lucide="eye" class="text-orange-500 w-6 h-6"></i>
+                <div>
+                    <h1 class="font-black text-white text-lg leading-none tracking-tight">FTC<span class="text-orange-500">GOV</span></h1>
+                    <p class="text-[10px] text-slate-400 font-medium">Auditoria Cidadã</p>
+                </div>
+            </div>
+            <!-- Botão Upload Mobile -->
+            <label for="csvInput" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 cursor-pointer transition shadow-lg shadow-blue-900/40">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">CARREGAR CSVs</span>
+                <span class="sm:hidden">DADOS</span>
+            </label>
+            <input type="file" id="csvInput" multiple accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+        </div>
+    </header>
+
+    <!-- ÁREA DE CONTEÚDO -->
+    <main class="flex-grow p-4 max-w-5xl mx-auto w-full">
         
-        /* Animações */
-        .fade-in { animation: fadeIn 0.5s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        <!-- ESTADO INICIAL (SEM DADOS) -->
+        <div id="emptyState" class="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+            <div class="bg-slate-800 p-6 rounded-full mb-4 shadow-inner">
+                <i data-lucide="database" class="w-12 h-12 text-slate-600"></i>
+            </div>
+            <h2 class="text-xl font-bold text-white mb-2">Aguardando Base de Dados</h2>
+            <p class="text-slate-400 max-w-xs mx-auto text-sm mb-6">
+                Para iniciar, clique no botão "DADOS" acima e selecione os arquivos CSV exportados do Antonieta/FNDE.
+            </p>
+            <div class="text-xs text-slate-600 bg-slate-900/50 p-3 rounded border border-slate-800">
+                Arquivos suportados: Informações Gerais, Contratação, Pagamentos...
+            </div>
+        </div>
+
+        <!-- CARREGANDO -->
+        <div id="loadingState" class="hidden flex-col items-center justify-center py-20">
+            <div class="spinner mb-4"></div>
+            <p class="text-orange-500 font-bold animate-pulse">Processando e Cruzando Dados...</p>
+            <p class="text-xs text-slate-500 mt-2" id="loadingStatus">Lendo arquivos...</p>
+        </div>
+
+        <!-- DASHBOARD (ESCONDIDO INICIALMENTE) -->
+        <div id="dashboard" class="hidden space-y-6">
+            
+            <!-- KPIs -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="glass p-3 rounded-xl border-l-4 border-blue-500">
+                    <div class="text-[10px] uppercase text-slate-400 font-bold">Obras</div>
+                    <div class="text-2xl font-black text-white" id="kpiTotal">0</div>
+                </div>
+                <div class="glass p-3 rounded-xl border-l-4 border-red-500">
+                    <div class="text-[10px] uppercase text-slate-400 font-bold">Risco Crítico</div>
+                    <div class="text-2xl font-black text-white" id="kpiCritico">0</div>
+                </div>
+                <div class="glass p-3 rounded-xl border-l-4 border-orange-500">
+                    <div class="text-[10px] uppercase text-slate-400 font-bold">Valor Total</div>
+                    <div class="text-lg font-black text-white" id="kpiValor">R$ 0</div>
+                </div>
+                <div class="glass p-3 rounded-xl border-l-4 border-purple-500">
+                    <div class="text-[10px] uppercase text-slate-400 font-bold">Municípios</div>
+                    <div class="text-2xl font-black text-white" id="kpiMun">0</div>
+                </div>
+            </div>
+
+            <!-- FILTROS -->
+            <div class="overflow-x-auto pb-2">
+                <div class="flex gap-2 min-w-max">
+                    <button onclick="filtrar('RANKING', this)" class="btn-filter btn-active px-4 py-2 rounded-lg text-xs font-bold glass flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> RANKING
+                    </button>
+                    <button onclick="filtrar('PARALISADA', this)" class="btn-filter px-4 py-2 rounded-lg text-xs font-bold glass text-slate-400 flex items-center gap-2">
+                        <i data-lucide="alert-circle" class="w-4 h-4"></i> PARALISADAS
+                    </button>
+                    <button onclick="filtrar('FINANCEIRO', this)" class="btn-filter px-4 py-2 rounded-lg text-xs font-bold glass text-slate-400 flex items-center gap-2">
+                        <i data-lucide="dollar-sign" class="w-4 h-4"></i> FINANCEIRO
+                    </button>
+                </div>
+            </div>
+
+            <!-- LISTA DE OBRAS -->
+            <div id="listaObras" class="space-y-4 pb-10">
+                <!-- Itens injetados via JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- SCRIPT DE LÓGICA (VANILLA JS - RODA EM QUALQUER CELULAR) -->
+    <script>
+        // Inicializa ícones
+        lucide.createIcons();
+
+        // Estado Global da Aplicação
+        let OBRAS_GLOBAIS = [];
+        let OBRAS_FILTRADAS = [];
+
+        // ============================================================
+        // 1. UTILITÁRIOS
+        // ============================================================
         
-        .risk-gradient-high { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
-        .risk-gradient-med { background: linear-gradient(135deg, #f97316 0%, #c2410c 100%); }
-        .risk-gradient-low { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); }
+        // Converte string brasileira (1.200,50) para float JS (1200.50)
+        const parseBRL = (valor) => {
+            if (!valor) return 0.0;
+            if (typeof valor === 'number') return valor;
+            const limpo = valor.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
+            return parseFloat(limpo) || 0.0;
+        };
+
+        // Calcula dias entre datas
+        const diffDias = (dataStr) => {
+            if (!dataStr) return 0;
+            const partes = dataStr.split('/'); // Assumindo DD/MM/AAAA ou AAAA-MM-DD
+            let dt;
+            if (partes.length === 3 && partes[2].length === 4) {
+                 dt = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+            } else {
+                dt = new Date(dataStr);
+            }
+            if (isNaN(dt)) return 0;
+            const diff = new Date() - dt;
+            return Math.floor(diff / (1000 * 60 * 60 * 24));
+        };
+
+        // ============================================================
+        // 2. PROCESSAMENTO DE ARQUIVOS (O CORAÇÃO DO SISTEMA)
+        // ============================================================
         
-        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        function handleFileUpload(evt) {
+            const files = evt.target.files;
+            if (!files.length) return;
+
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('flex');
+
+            let filesRead = 0;
+            let rawData = {}; // Armazena dados brutos de cada arquivo
+
+            Array.from(files).forEach(file => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    encoding: "ISO-8859-1", // Padrão Excel Brasil
+                    complete: function(results) {
+                        // Tenta adivinhar o tipo do arquivo pelo cabeçalho
+                        const cols = results.meta.fields || [];
+                        const filename = file.name.toLowerCase();
+                        
+                        // Mapeamento baseado nos nomes dos arquivos enviados pelo usuário
+                        if (filename.includes("informações gerais") || cols.includes("Percentual de execução")) {
+                            rawData.geral = results.data;
+                        } else if (filename.includes("contratação") || cols.includes("Empresa contratada")) {
+                            rawData.contrato = results.data;
+                        } else if (filename.includes("repasse") || cols.includes("Valor repassado")) {
+                            rawData.repasse = results.data; // Para financeiro se não tiver pagamentos
+                        } else if (filename.includes("pagamentos") || cols.includes("Valor do pagamento")) {
+                            rawData.pagamentos = results.data;
+                        } else if (filename.includes("dados da prefeitura")) {
+                            rawData.prefeitura = results.data;
+                        }
+
+                        filesRead++;
+                        document.getElementById('loadingStatus').innerText = `Lendo: ${file.name} (${filesRead}/${files.length})`;
+
+                        if (filesRead === files.length) {
+                            processarDadosCruzados(rawData);
+                        }
+                    }
+                });
+            });
+        }
+
+        function processarDadosCruzados(raw) {
+            const mapaObras = {};
+
+            // 1. Base Principal: Informações Gerais
+            const listaBase = raw.geral || raw.contrato || [];
+            if (listaBase.length === 0) {
+                alert("Erro: Arquivo 'Informações Gerais' ou 'Contratação' não identificado. O sistema precisa de uma lista base de obras.");
+                window.location.reload();
+                return;
+            }
+
+            // 2. Construção do Objeto Mestre
+            listaBase.forEach(row => {
+                const id = row["ID da obra"];
+                if (!id) return;
+
+                mapaObras[id] = {
+                    id: id,
+                    nome: row["Nome da obra"] || row["Objeto"] || "Obra sem nome",
+                    municipio: row["Município"] || "N/A",
+                    uf: row["UF"] || "",
+                    status_obra: row["Situação da obra"] || "Desconhecido",
+                    fisico: parseBRL(row["Percentual de execução"] || row["% Medição física acumulada"] || "0"),
+                    financeiro: 0, // Será preenchido depois
+                    valor: 0,
+                    empresa: "Não Informado",
+                    inicio: "",
+                    fim: "",
+                    flags: [],
+                    score: 0
+                };
+            });
+
+            // 3. Enriquecimento com Dados de Contrato
+            if (raw.contrato) {
+                raw.contrato.forEach(row => {
+                    const id = row["ID da obra"];
+                    if (mapaObras[id]) {
+                        mapaObras[id].valor = parseBRL(row["Valor do contrato"]);
+                        mapaObras[id].empresa = row["Empresa contratada"] || mapaObras[id].empresa;
+                        mapaObras[id].inicio = row["Data de início da execução"];
+                        mapaObras[id].fim = row["Data de término do contrato"];
+                    }
+                });
+            }
+
+            // 4. Cálculo Financeiro (Soma de Pagamentos)
+            // Se tiver tabela de pagamentos, somamos por ID
+            if (raw.pagamentos) {
+                const pagamentosPorObra = {};
+                raw.pagamentos.forEach(row => {
+                    const id = row["ID da obra"];
+                    const valor = parseBRL(row["Valor da nota fiscal (R$)"] || row["Valor"]);
+                    if (id) {
+                        pagamentosPorObra[id] = (pagamentosPorObra[id] || 0) + valor;
+                    }
+                });
+                
+                // Calcula % financeiro
+                for (const id in mapaObras) {
+                    const pago = pagamentosPorObra[id] || 0;
+                    const total = mapaObras[id].valor;
+                    if (total > 0) {
+                        mapaObras[id].financeiro = (pago / total) * 100;
+                    }
+                }
+            } else if (raw.geral) {
+                // Tenta pegar de coluna se existir no geral
+                // Algumas planilhas tem "% Financeiro" direto
+            }
+
+            // 5. Motor de Risco (Antonieta Logic)
+            OBRAS_GLOBAIS = Object.values(mapaObras).map(obra => calcularRisco(obra));
+            
+            // Ordena por Risco
+            OBRAS_GLOBAIS.sort((a, b) => b.score - a.score);
+            OBRAS_FILTRADAS = [...OBRAS_GLOBAIS];
+
+            renderizarDashboard();
+        }
+
+        function calcularRisco(obra) {
+            let score = 0;
+            let flags = [];
+            
+            // Tratamento de dados numéricos para display (2 casas decimais)
+            obra.fisico = parseFloat(obra.fisico.toFixed(2));
+            obra.financeiro = parseFloat(obra.financeiro.toFixed(2));
+
+            // [PESO 20] Paralisia
+            const diasObra = diffDias(obra.inicio);
+            if (obra.status_obra.toLowerCase().includes("parali") || (diasObra > 120 && obra.fisico < 5)) {
+                score += 20;
+                flags.push({label: "Paralisia Detectada", cor: "text-red-400"});
+            }
+
+            // [PESO 20] Sobrefaturamento / Avanço Desproporcional
+            if ((obra.financeiro - obra.fisico) > 10) {
+                score += 20;
+                flags.push({label: `Financeiro (${obra.financeiro}%) > Físico (${obra.fisico}%)`, cor: "text-orange-400"});
+            }
+
+            // [PESO 20] Prazo Expirado
+            if (obra.fim) {
+                const diasVencido = diffDias(obra.fim); // se positivo, venceu
+                if (diasVencido > 0 && obra.fisico < 95) {
+                    score += 20;
+                    flags.push({label: "Vigência Expirada", cor: "text-red-400"});
+                }
+            }
+            
+            // [PESO 25] Risco Societário (Heurística simples por nome, já que não temos Capital Social nos CSVs básicos)
+            if (obra.empresa && obra.empresa.toUpperCase().includes("EIRELI") && obra.valor > 1000000) {
+                score += 25;
+                flags.push({label: "EIRELI em Contrato Milionário", cor: "text-purple-400"});
+            }
+
+            obra.score = score;
+            obra.flags = flags;
+            return obra;
+        }
+
+        // ============================================================
+        // 3. RENDERIZAÇÃO (UI)
+        // ============================================================
+
+        function renderizarDashboard() {
+            // Esconde loading, mostra dashboard
+            document.getElementById('loadingState').classList.remove('flex');
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+
+            // Atualiza KPIs
+            document.getElementById('kpiTotal').innerText = OBRAS_GLOBAIS.length;
+            document.getElementById('kpiCritico').innerText = OBRAS_GLOBAIS.filter(o => o.score >= 50).length;
+            document.getElementById('kpiMun').innerText = new Set(OBRAS_GLOBAIS.map(o => o.municipio)).size;
+            
+            const totalVal = OBRAS_GLOBAIS.reduce((acc, curr) => acc + curr.valor, 0);
+            document.getElementById('kpiValor').innerText = totalVal.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL', maximumFractionDigits: 0});
+
+            renderizarLista();
+        }
+
+        function renderizarLista() {
+            const container = document.getElementById('listaObras');
+            container.innerHTML = "";
+
+            if (OBRAS_FILTRADAS.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-500">Nenhuma obra encontrada neste filtro.</div>`;
+                return;
+            }
+
+            OBRAS_FILTRADAS.forEach(obra => {
+                // Define cor do badge
+                let badgeClass = "risk-low";
+                let riscoTexto = "BAIXO";
+                if (obra.score >= 50) { badgeClass = "risk-high"; riscoTexto = "CRÍTICO"; }
+                else if (obra.score >= 20) { badgeClass = "risk-med"; riscoTexto = "MÉDIO"; }
+
+                const card = document.createElement('div');
+                card.className = "glass rounded-xl overflow-hidden animate-fade-in";
+                
+                // HTML do Card
+                card.innerHTML = `
+                    <div class="flex">
+                        <!-- Coluna Score -->
+                        <div class="w-20 md:w-24 shrink-0 bg-slate-800/50 flex flex-col items-center justify-center border-r border-slate-700/50 p-2">
+                            <div class="w-12 h-12 rounded-full ${badgeClass} flex items-center justify-center text-white font-black text-lg shadow-lg mb-1">
+                                ${obra.score}
+                            </div>
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${riscoTexto}</span>
+                        </div>
+                        
+                        <!-- Conteúdo -->
+                        <div class="flex-grow p-4 min-w-0">
+                            <div class="flex items-start justify-between mb-1">
+                                <span class="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-mono">${obra.id}</span>
+                                <span class="text-[10px] text-slate-400 truncate max-w-[100px]">${obra.municipio}/${obra.uf}</span>
+                            </div>
+                            
+                            <h3 class="text-sm md:text-base font-bold text-white leading-tight mb-3 truncate-2-lines">${obra.nome}</h3>
+                            
+                            <!-- Barras de Progresso -->
+                            <div class="space-y-2 mb-3">
+                                <div>
+                                    <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                                        <span>Físico</span>
+                                        <span class="text-blue-400 font-bold">${obra.fisico}%</span>
+                                    </div>
+                                    <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-blue-500" style="width: ${Math.min(obra.fisico, 100)}%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                                        <span>Financeiro</span>
+                                        <span class="${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'} font-bold">${obra.financeiro}%</span>
+                                    </div>
+                                    <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                        <div class="h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-emerald-500'}" style="width: ${Math.min(obra.financeiro, 100)}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-[10px] text-slate-500 truncate mb-2">
+                                <span class="font-bold text-slate-400">Empresa:</span> ${obra.empresa}
+                            </p>
+
+                            <!-- Flags de Risco -->
+                            <div class="flex flex-wrap gap-1">
+                                ${obra.flags.map(f => `
+                                    <span class="text-[9px] border border-slate-700 bg-slate-800/50 px-1.5 py-0.5 rounded ${f.cor} font-medium">
+                                        ⚠ ${f.label}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ============================================================
+        // 4. LÓGICA DE FILTRO (UI)
+        // ============================================================
+
+        window.filtrar = function(tipo, btnElement) {
+            // UI Update
+            document.querySelectorAll('.btn-filter').forEach(b => {
+                b.classList.remove('btn-active', 'text-white');
+                b.classList.add('text-slate-400');
+            });
+            btnElement.classList.add('btn-active', 'text-white');
+            btnElement.classList.remove('text-slate-400');
+
+            // Logic
+            if (tipo === 'RANKING') {
+                OBRAS_FILTRADAS = [...OBRAS_GLOBAIS];
+            } else if (tipo === 'PARALISADA') {
+                OBRAS_FILTRADAS = OBRAS_GLOBAIS.filter(o => 
+                    o.status_obra.toLowerCase().includes('parali') || 
+                    (diffDias(o.inicio) > 120 && o.fisico < 5)
+                );
+            } else if (tipo === 'FINANCEIRO') {
+                OBRAS_FILTRADAS = OBRAS_GLOBAIS.filter(o => 
+                    (o.financeiro - o.fisico) > 10
+                );
+            }
+
+            renderizarLista();
+        }
+
+    </script>
+</body>
+</html>
+
     </style>
 </head>
 <body>
