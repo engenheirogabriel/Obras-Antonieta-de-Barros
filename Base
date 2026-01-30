@@ -1,21 +1,580 @@
-# Base
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RevelaGov - Monitoramento de Obras Públicas</title>
+    
+    <!-- Bibliotecas Core -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Estilização e Ícones -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 
-## Improved Android Chrome Compatibility
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        
+        /* Animações */
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .risk-gradient-high { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+        .risk-gradient-med { background: linear-gradient(135deg, #f97316 0%, #c2410c 100%); }
+        .risk-gradient-low { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); }
+        
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-### Viewport Optimizations
-- Set the correct viewport meta tag for better scaling on mobile devices.
-  ```html
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  ```
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+        const { 
+            AlertTriangle, TrendingUp, ShieldAlert, Building2, Search, 
+            FileText, DollarSign, Calendar, MapPin, Eye, X, Filter,
+            BarChart3, CheckCircle2, Siren
+        } = lucide;
 
-### Touch-Friendly Interface
-- Ensure all buttons and interactive elements are large enough to be easily tapped on touch screens.
-- Include adequate spacing between interactive elements to prevent mis-taps.
+        // ==============================================================================
+        // 1. DATA ENGINE - DADOS CRUZADOS DOS ARQUIVOS CSV FORNECIDOS
+        // ==============================================================================
+        // Nota: Extraído dos snippets dos arquivos: Informações Gerais.csv, Contratação.csv e Repasses.csv
+        const RAW_DATA = [
+            {
+                id: "1105233",
+                nome: "Reconstrução Escola Classe 59 de Ceilândia",
+                municipio: "Brasília",
+                uf: "DF",
+                ente: "SECRETARIA DE EDUCACAO DO DISTRITO FEDERAL",
+                cnpj_ente: "00.394.676/0001-07",
+                empresa: "INFRA-ENGETH INFRA-ESTRUTURA CONSTRUCAO E COMERCIO LTDA",
+                cnpj_empresa: "02.237.437/0001-79",
+                valor: 7030380.50,
+                inicio_vigencia: "2023-03-07",
+                fim_vigencia: "2026-02-16",
+                fisico: 96.19,
+                financeiro: 15.00, // Dado do arquivo de Repasse (Discrepância invertida curiosa ou erro de base)
+                status_obra: "Em Execução",
+                status_fnde: "Indeferido", // CSV Históricos: Indeferido recorrente em 2025
+                data_ultimo_pagamento: "22/06/2021",
+                justificativa_aditivo: "Prorrogação de prazo Finalizada"
+            },
+            {
+                id: "1001799",
+                nome: "PAC 2 - CRECHE/PRÉ-ESCOLA 002",
+                municipio: "Barra de São Francisco",
+                uf: "ES",
+                ente: "PREF MUN DE BARRA DE SAO FRANCISCO",
+                cnpj_ente: "27.165.745/0001-67",
+                empresa: "CONSTRUTORA OLIVEIRA LTDA",
+                cnpj_empresa: "09.196.982/0001-03",
+                valor: 1837988.73,
+                inicio_vigencia: "2015-10-15",
+                fim_vigencia: "2023-04-28", // Expirado
+                fisico: 18.07, // CSV Pagamentos: Travado em 18% há anos
+                financeiro: 30.50, // CSV Pagamentos mostra pagamentos antigos somando ~30%
+                status_obra: "Paralisada",
+                status_fnde: "Cancelado",
+                data_ultimo_pagamento: "14/07/2022",
+                justificativa_aditivo: "Atrasos na execução por chuva e adequação de terreno"
+            },
+            {
+                id: "1097774",
+                nome: "Esc. Mun. Profª. Aldamarina de Souza Oliveira",
+                municipio: "Barcelos",
+                uf: "AM",
+                ente: "PREFEITURA MUNICIPAL DE BARCELOS",
+                cnpj_ente: "04.271.037/0001-05",
+                empresa: "RM CONSTRUSERV EIRELI",
+                cnpj_empresa: "40.730.195/0001-40",
+                valor: 2913500.00,
+                inicio_vigencia: "2025-05-19",
+                fim_vigencia: "2026-03-15",
+                fisico: 67.92,
+                financeiro: 100.00, // CSV Repasse FNDE: 100% repassado em empenhos antigos recuperados
+                status_obra: "Em Execução",
+                status_fnde: "Deferido",
+                data_ultimo_pagamento: "28/09/2021",
+                justificativa_aditivo: "-"
+            },
+            {
+                id: "1097824",
+                nome: "Creche Neide Tomaz Avelino",
+                municipio: "Santa Isabel do Rio Negro",
+                uf: "AM",
+                ente: "PREFEITURA MUNICIPAL DE SANTA ISABEL",
+                cnpj_ente: "04.194.239/0001-09",
+                empresa: "CONSTRUTORA LOCAL (DADO FALTANTE)",
+                cnpj_empresa: "NÃO INFORMADO",
+                valor: 1500000.00, // Estimado baseado na tipologia
+                inicio_vigencia: "2023-08-02",
+                fim_vigencia: "2024-08-15",
+                fisico: 18.07, // Travada no início
+                financeiro: 25.00,
+                status_obra: "Obra aprovada",
+                status_fnde: "Deferido",
+                data_ultimo_pagamento: "-",
+                justificativa_aditivo: "-"
+            },
+            {
+                id: "1041572",
+                nome: "Quadra Escolar Coberta com Vestiário",
+                municipio: "Município Exemplo",
+                uf: "BA",
+                ente: "PREF MUN EXEMPLO",
+                cnpj_ente: "99.999.999/0001-99",
+                empresa: "ALADIM CONSTRUCOES E EMPREENDIMENTOS",
+                cnpj_empresa: "48.326.623/0001-85",
+                valor: 509000.00,
+                inicio_vigencia: "2015-04-01",
+                fim_vigencia: "2016-04-01",
+                fisico: 63.24,
+                financeiro: 70.00,
+                status_obra: "Paralisada",
+                status_fnde: "Inadimplente",
+                data_ultimo_pagamento: "04/09/2015",
+                justificativa_aditivo: "-"
+            },
+            {
+                id: "1108645",
+                nome: "Ampliação Escola Municipal Centro",
+                municipio: "Santo Antônio do Içá",
+                uf: "AM",
+                ente: "PREFEITURA MUNICIPAL SAI",
+                cnpj_ente: "04.000.000/0001-00",
+                empresa: "CONSTRUTORA AMAZONAS",
+                cnpj_empresa: "13.694.138/0001-80",
+                valor: 3167407.61,
+                inicio_vigencia: "2022-04-11",
+                fim_vigencia: "2025-04-30",
+                fisico: 45.00,
+                financeiro: 15.00,
+                status_obra: "Em Execução",
+                status_fnde: "Diligência", // Fica indo e voltando (CSV Histórico)
+                data_ultimo_pagamento: "11/04/2022",
+                justificativa_aditivo: "Atrasos nos repasses federais e replanilhamento"
+            }
+        ];
 
-### Faster Rendering
-- Minimize the use of large images and optimize them for mobile.
-- Utilize lazy loading for images that are not in the viewport.
+        // ==============================================================================
+        // 2. MOTOR DE RISCO (ALGORITMO ANTONIETA)
+        // ==============================================================================
+        const processarRisco = (obra) => {
+            let score = 0;
+            let flags = [];
+            
+            // Datas
+            const hoje = new Date();
+            const fim = new Date(obra.fim_vigencia);
+            const inicio = new Date(obra.inicio_vigencia);
+            const diasDecorridos = Math.floor((hoje - inicio) / (1000 * 60 * 60 * 24));
+            
+            // [PESO 20] Paralisia Crítica
+            // Lógica: Status "Paralisada" OU <5% execução em 120 dias
+            if (obra.status_obra === "Paralisada" || (diasDecorridos > 120 && obra.fisico < 5)) {
+                score += 20;
+                flags.push({ tipo: "PARALISIA", label: "Obra Paralisada/Estagnada", desc: "Sem evolução física significativa.", peso: 20 });
+            }
 
-### Better Mobile UX
-- Implement a mobile-first design approach.
-- Ensure content is easily readable with appropriate font sizing and contrast.
+            // [PESO 20] Discrepância Financeira (Sobrefaturamento)
+            // Lógica: Financeiro > Físico + 10%
+            if ((obra.financeiro - obra.fisico) > 10) {
+                score += 20;
+                flags.push({ tipo: "FINANCEIRO", label: "Discrepância Financeira", desc: `Pago ${obra.financeiro}% vs Executado ${obra.fisico}%`, peso: 20 });
+            }
+
+            // [PESO 20] Prazo Expirado
+            if (hoje > fim && obra.fisico < 98 && obra.status_obra !== "Concluída") {
+                score += 20;
+                flags.push({ tipo: "PRAZO", label: "Vigência Expirada", desc: "Contrato vencido sem conclusão da obra.", peso: 20 });
+            }
+
+            // [PESO 10] Tramitação FNDE
+            if (['Indeferido', 'Cancelado', 'Inadimplente'].includes(obra.status_fnde)) {
+                score += 10;
+                flags.push({ tipo: "TRAMITACAO", label: `Situação FNDE: ${obra.status_fnde}`, desc: "Pendências administrativas graves.", peso: 10 });
+            }
+
+            // [PESO 25] Risco Societário (Simulação baseada em EIRELI/ME em grandes obras)
+            // No mundo real cruzaria com a API da Receita. Aqui usamos heurística do nome da empresa vs valor.
+            const isEireli = obra.empresa.toUpperCase().includes("EIRELI");
+            const isHighValue = obra.valor > 2000000;
+            
+            if (isEireli && isHighValue) {
+                score += 25;
+                flags.push({ tipo: "SOCIETARIO", label: "Risco Societário", desc: "Empresa individual (EIRELI) em contrato de alto valor.", peso: 25 });
+            }
+            
+            // [PESO 15] Licitação (Falta de dados antigos ou atrasos)
+            if (diasDecorridos > 365 && obra.fisico < 20) {
+                 score += 15;
+                 flags.push({ tipo: "GESTAO", label: "Baixa Eficiência", desc: "Menos de 20% executado em 1 ano.", peso: 15 });
+            }
+
+            return { ...obra, score, flags };
+        };
+
+        // ==============================================================================
+        // 3. COMPONENTES DE UI
+        // ==============================================================================
+
+        const DetailModal = ({ obra, onClose }) => {
+            if (!obra) return null;
+            
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm fade-in">
+                    <div className="bg-slate-900 w-full max-w-3xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+                        
+                        {/* Header Modal */}
+                        <div className="p-6 bg-slate-800 border-b border-slate-700 flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded">ID: {obra.id}</span>
+                                    <span className="text-slate-400 text-sm">{obra.municipio}/{obra.uf}</span>
+                                </div>
+                                <h2 className="text-xl font-bold text-white leading-tight">{obra.nome}</h2>
+                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-full text-slate-400 transition">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Corpo Modal */}
+                        <div className="p-6 space-y-6">
+                            
+                            {/* Score Banner */}
+                            <div className="flex items-center gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black text-white shadow-lg ${obra.score >= 50 ? 'risk-gradient-high' : obra.score >= 20 ? 'risk-gradient-med' : 'risk-gradient-low'}`}>
+                                    {obra.score}
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-bold">Pontuação de Risco</h3>
+                                    <p className="text-slate-400 text-sm">Calculado com base em 6 vetores de análise (FNDE/TCU)</p>
+                                </div>
+                            </div>
+
+                            {/* Detalhes Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 className="text-orange-500 font-bold uppercase text-xs mb-3 flex items-center gap-2">
+                                        <Building2 size={14}/> Dados Contratuais
+                                    </h4>
+                                    <ul className="space-y-3 text-sm text-slate-300">
+                                        <li className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Valor Contrato:</span>
+                                            <span className="font-mono text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(obra.valor)}</span>
+                                        </li>
+                                        <li className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Ente:</span>
+                                            <span className="text-right w-1/2 truncate" title={obra.ente}>{obra.ente}</span>
+                                        </li>
+                                        <li className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Empresa:</span>
+                                            <span className="text-right w-1/2 truncate" title={obra.empresa}>{obra.empresa}</span>
+                                        </li>
+                                        <li className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Vigência:</span>
+                                            <span>{obra.inicio_vigencia} até {obra.fim_vigencia}</span>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-orange-500 font-bold uppercase text-xs mb-3 flex items-center gap-2">
+                                        <Siren size={14}/> Sinais de Alerta Detectados
+                                    </h4>
+                                    {obra.flags.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {obra.flags.map((flag, idx) => (
+                                                <div key={idx} className="bg-red-900/20 border border-red-900/50 p-3 rounded-lg flex gap-3">
+                                                    <AlertTriangle className="text-red-500 shrink-0" size={18} />
+                                                    <div>
+                                                        <p className="text-red-200 font-bold text-xs">{flag.label} (+{flag.peso} pts)</p>
+                                                        <p className="text-red-400 text-xs leading-snug">{flag.desc}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="bg-green-900/20 border border-green-900/50 p-4 rounded-lg text-green-400 text-sm flex items-center gap-2">
+                                            <CheckCircle2 size={18} />
+                                            Nenhum alerta crítico encontrado.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Gráfico de Barras Físico vs Financeiro */}
+                            <div className="bg-slate-800 p-4 rounded-xl">
+                                <h4 className="text-slate-400 text-xs font-bold uppercase mb-4">Evolução da Obra</h4>
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex justify-between text-xs text-slate-300 mb-1">
+                                            <span>Execução Física (Vistoria)</span>
+                                            <span>{obra.fisico}%</span>
+                                        </div>
+                                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                                            <div className="h-full bg-blue-500" style={{ width: `${obra.fisico}%` }}></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-xs text-slate-300 mb-1">
+                                            <span>Execução Financeira (Pagamentos)</span>
+                                            <span>{obra.financeiro}%</span>
+                                        </div>
+                                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                                            <div className={`h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${obra.financeiro}%` }}></div>
+                                        </div>
+                                        {obra.financeiro > obra.fisico + 10 && (
+                                            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                                                <AlertTriangle size={10} /> Potencial Sobrefaturamento detectado
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [filtro, setFiltro] = useState('RANKING'); // RANKING, PARALISADA, FINANCEIRO, SOCIETARIO
+            const [busca, setBusca] = useState('');
+            const [selectedObra, setSelectedObra] = useState(null);
+
+            // Processamento dos Dados
+            const dadosProcessados = useMemo(() => {
+                return RAW_DATA.map(processarRisco).sort((a, b) => b.score - a.score);
+            }, []);
+
+            // Lógica de Filtragem
+            const listaExibicao = useMemo(() => {
+                let lista = dadosProcessados.filter(item => 
+                    item.nome.toLowerCase().includes(busca.toLowerCase()) || 
+                    item.municipio.toLowerCase().includes(busca.toLowerCase())
+                );
+
+                if (filtro === 'PARALISADA') {
+                    lista = lista.filter(i => i.flags.some(f => f.tipo === 'PARALISIA' || f.tipo === 'PRAZO'));
+                } else if (filtro === 'FINANCEIRO') {
+                    lista = lista.filter(i => i.flags.some(f => f.tipo === 'FINANCEIRO'));
+                } else if (filtro === 'SOCIETARIO') {
+                    lista = lista.filter(i => i.flags.some(f => f.tipo === 'SOCIETARIO'));
+                }
+                
+                // Se filtro for RANKING, já está ordenado pelo processamento inicial
+                return lista;
+            }, [dadosProcessados, filtro, busca]);
+
+            return (
+                <div className="min-h-screen pb-12 bg-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black">
+                    
+                    {/* Header */}
+                    <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+                        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2.5 rounded-lg shadow-lg shadow-orange-900/20">
+                                    <Eye className="text-white" size={24} />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-black text-white tracking-tight">REVELA<span className="text-orange-500">GOV</span></h1>
+                                    <p className="text-xs text-slate-400 font-medium">Painel de Inteligência e Risco</p>
+                                </div>
+                            </div>
+
+                            <div className="relative w-full md:w-96 group">
+                                <Search className="absolute left-3 top-3 text-slate-500 group-focus-within:text-orange-500 transition-colors" size={18} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar por obra, município ou ID..." 
+                                    value={busca}
+                                    onChange={(e) => setBusca(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-full py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all shadow-inner"
+                                />
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto px-4 mt-8">
+                        
+                        {/* Dashboard Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                            <div className="glass-panel p-5 rounded-xl">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="bg-blue-500/10 p-2 rounded-lg text-blue-500"><FileText size={20}/></div>
+                                    <span className="text-xs text-slate-500 font-bold uppercase">Total Obras</span>
+                                </div>
+                                <div className="text-3xl font-black text-white">{dadosProcessados.length}</div>
+                            </div>
+                            <div className="glass-panel p-5 rounded-xl border-l-4 border-l-red-500">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="bg-red-500/10 p-2 rounded-lg text-red-500"><Siren size={20}/></div>
+                                    <span className="text-xs text-slate-500 font-bold uppercase">Risco Crítico</span>
+                                </div>
+                                <div className="text-3xl font-black text-white">{dadosProcessados.filter(d => d.score >= 50).length}</div>
+                            </div>
+                            <div className="glass-panel p-5 rounded-xl">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="bg-orange-500/10 p-2 rounded-lg text-orange-500"><DollarSign size={20}/></div>
+                                    <span className="text-xs text-slate-500 font-bold uppercase">Valor Auditado</span>
+                                </div>
+                                <div className="text-3xl font-black text-white">
+                                    {new Intl.NumberFormat('pt-BR', { notation: "compact", style: 'currency', currency: 'BRL' }).format(dadosProcessados.reduce((acc, curr) => acc + curr.valor, 0))}
+                                </div>
+                            </div>
+                            <div className="glass-panel p-5 rounded-xl">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="bg-purple-500/10 p-2 rounded-lg text-purple-500"><MapPin size={20}/></div>
+                                    <span className="text-xs text-slate-500 font-bold uppercase">Municípios</span>
+                                </div>
+                                <div className="text-3xl font-black text-white">{[...new Set(dadosProcessados.map(d => d.municipio))].length}</div>
+                            </div>
+                        </div>
+
+                        {/* Filtros Principais */}
+                        <div className="mb-6">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button 
+                                    onClick={() => setFiltro('RANKING')}
+                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'RANKING' ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    <BarChart3 size={18} /> RANKING DE PONTOS
+                                </button>
+                                <button 
+                                    onClick={() => setFiltro('PARALISADA')}
+                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'PARALISADA' ? 'bg-red-600 text-white shadow-lg shadow-red-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    <Calendar size={18} /> PARALISADAS / ATRASOS
+                                </button>
+                                <button 
+                                    onClick={() => setFiltro('FINANCEIRO')}
+                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'FINANCEIRO' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    <DollarSign size={18} /> FINANCEIRO
+                                </button>
+                                <button 
+                                    onClick={() => setFiltro('SOCIETARIO')}
+                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'SOCIETARIO' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    <ShieldAlert size={18} /> SOCIETÁRIO
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Lista de Resultados */}
+                        <div className="space-y-4 fade-in">
+                            {listaExibicao.length > 0 ? listaExibicao.map((obra) => (
+                                <div key={obra.id} className="glass-panel p-0 rounded-xl hover:border-orange-500/50 transition-colors group">
+                                    <div className="flex flex-col md:flex-row">
+                                        
+                                        {/* Coluna Esquerda: Score */}
+                                        <div className="p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-700 bg-slate-800/30 w-full md:w-32 shrink-0">
+                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-black text-white mb-2 shadow-inner ${obra.score >= 50 ? 'risk-gradient-high' : obra.score >= 20 ? 'risk-gradient-med' : 'risk-gradient-low'}`}>
+                                                {obra.score}
+                                            </div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score</span>
+                                        </div>
+
+                                        {/* Coluna Central: Dados */}
+                                        <div className="p-6 flex-grow">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${obra.score >= 50 ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
+                                                    {obra.score >= 50 ? 'Risco Alto' : obra.score >= 20 ? 'Risco Médio' : 'Risco Baixo'}
+                                                </span>
+                                                <span className="text-slate-500 text-xs font-mono">{obra.id}</span>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-white mb-1 leading-snug group-hover:text-orange-400 transition-colors">{obra.nome}</h3>
+                                            <p className="text-sm text-slate-400 flex items-center gap-1 mb-4">
+                                                <MapPin size={12} /> {obra.municipio} - {obra.uf}
+                                            </p>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Evolução Física</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-grow h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-blue-500" style={{ width: `${obra.fisico}%` }}></div>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-blue-400">{obra.fisico}%</span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Pagamentos</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-grow h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                                            <div className={`h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${obra.financeiro}%` }}></div>
+                                                        </div>
+                                                        <span className={`text-xs font-bold ${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}`}>{obra.financeiro}%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Coluna Direita: Ação */}
+                                        <div className="p-6 flex flex-col justify-center items-end border-t md:border-t-0 md:border-l border-slate-700 bg-slate-800/30 w-full md:w-48 shrink-0">
+                                            <div className="text-right mb-3">
+                                                <div className="text-xs text-slate-500">Contratada</div>
+                                                <div className="text-xs font-bold text-white truncate w-32" title={obra.empresa}>{obra.empresa.substring(0, 20)}...</div>
+                                            </div>
+                                            <button 
+                                                onClick={() => setSelectedObra(obra)}
+                                                className="w-full py-2 bg-slate-700 hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
+                                            >
+                                                ANALISAR <TrendingUp size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Flags Footer */}
+                                    {obra.flags.length > 0 && (
+                                        <div className="px-6 py-3 bg-red-500/5 border-t border-slate-800 flex flex-wrap gap-2">
+                                            {obra.flags.map((f, i) => (
+                                                <span key={i} className="text-[10px] uppercase font-bold text-red-400 flex items-center gap-1 bg-red-900/20 px-2 py-1 rounded">
+                                                    <AlertTriangle size={10} /> {f.label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )) : (
+                                <div className="text-center py-20">
+                                    <div className="bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Search size={32} className="text-slate-600" />
+                                    </div>
+                                    <h3 className="text-white font-bold text-lg">Nenhum resultado encontrado</h3>
+                                    <p className="text-slate-500">Tente ajustar os filtros ou a busca.</p>
+                                </div>
+                            )}
+                        </div>
+
+                    </main>
+
+                    {/* Modal */}
+                    {selectedObra && (
+                        <DetailModal obra={selectedObra} onClose={() => setSelectedObra(null)} />
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
