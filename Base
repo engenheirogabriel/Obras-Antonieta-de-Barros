@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FTC Transparência - Auditoria Cidadã</title>
+    <title>FTC Transparência - Fiscalização de Obras</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,567 +11,553 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- SheetJS (Excel/ODS) -->
+    <!-- PapaParse (CSV Engine) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- SheetJS (Excel Engine) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #e2e8f0; }
-        .glass { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .card { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); }
-        .btn-active { background-color: #0ea5e9 !important; color: white !important; border-color: #0ea5e9 !important; }
+        .glass { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); transition: all 0.2s; }
+        .card:active { transform: scale(0.99); background: rgba(30, 41, 59, 0.8); }
         
-        /* Badges de Risco */
-        .badge-critical { background: linear-gradient(135deg, #ef4444, #991b1b); box-shadow: 0 2px 10px rgba(239, 68, 68, 0.3); }
-        .badge-medium { background: linear-gradient(135deg, #f97316, #c2410c); }
-        .badge-low { background: linear-gradient(135deg, #22c55e, #15803d); }
-
-        /* Abas */
-        .tab-btn.active { border-bottom: 2px solid #0ea5e9; color: #0ea5e9; }
+        /* Badges e Risco */
+        .risk-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; }
+        .risk-critical { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
+        .risk-warning { background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid rgba(249,115,22,0.4); }
         
-        /* Loader */
-        .loader { border: 3px solid rgba(255,255,255,0.1); border-left-color: #0ea5e9; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        /* Loader e Progress */
+        .loader { border: 3px solid rgba(255,255,255,0.1); border-left-color: #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Scroll Hide */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="pb-20">
+<body class="pb-24">
 
     <!-- HEADER -->
-    <nav class="glass sticky top-0 z-50 px-4 py-3 shadow-xl">
-        <div class="flex justify-between items-center mb-3">
-            <div class="flex items-center gap-2">
-                <div class="bg-blue-600 p-1.5 rounded-lg">
-                    <i data-lucide="search" class="text-white w-5 h-5"></i>
+    <nav class="glass sticky top-0 z-50 px-4 py-3 shadow-2xl">
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-900/50">
+                    <i data-lucide="search-check" class="text-white w-5 h-5"></i>
                 </div>
                 <div>
                     <h1 class="font-black text-white text-lg leading-none tracking-tight">FTC <span class="text-blue-500">TRANSPARÊNCIA</span></h1>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Auditoria de Obras & Dados</p>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Auditoria Cidadã</p>
                 </div>
             </div>
+            <label class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-2 cursor-pointer border border-slate-700 transition">
+                <i data-lucide="folder-input" class="w-3 h-3"></i> CARREGAR CSVs
+                <input type="file" id="fileInput" multiple accept=".csv, .xlsx, .xls, .ods" class="hidden" onchange="iniciarProcessamento(this)">
+            </label>
         </div>
 
-        <!-- BOTOES DE AÇÃO -->
-        <div class="flex gap-2">
-            <label class="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition border border-slate-600">
-                <i data-lucide="folder-open" class="w-4 h-4"></i> CARREGAR ARQUIVOS
-                <input type="file" id="fileInput" multiple accept=".csv, .xlsx, .xls, .ods" class="hidden" onchange="processarArquivos(this)">
-            </label>
-            
-            <button onclick="acionarAPIs()" id="btnApi" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition opacity-50 cursor-not-allowed" disabled>
-                <i data-lucide="globe" class="w-4 h-4"></i> CONSULTAR API (CNPJ)
+        <!-- BARRA DE AÇÕES (BOTÕES SOLICITADOS) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button onclick="auditar('ENTES')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+                <i data-lucide="landmark" class="w-4 h-4 text-blue-400"></i>
+                <span class="text-[9px] font-bold uppercase">Entes</span>
+            </button>
+            <button onclick="auditar('CONTRATOS')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+                <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i>
+                <span class="text-[9px] font-bold uppercase">Contratos</span>
+            </button>
+            <button onclick="auditar('EMPRESAS')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+                <i data-lucide="building-2" class="w-4 h-4 text-orange-400"></i>
+                <span class="text-[9px] font-bold uppercase">Empresas</span>
+            </button>
+            <button onclick="auditar('SOCIOS')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+                <i data-lucide="users" class="w-4 h-4 text-purple-400"></i>
+                <span class="text-[9px] font-bold uppercase">Sócios</span>
             </button>
         </div>
     </nav>
 
-    <!-- ÁREA DE MENSAGENS / EMPTY STATE -->
-    <div id="statusArea" class="p-6 text-center mt-10 animate-fade-in">
-        <div class="bg-slate-800/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
-            <i data-lucide="file-spreadsheet" class="w-10 h-10 text-slate-500"></i>
+    <!-- ESTADO VAZIO -->
+    <div id="emptyState" class="p-8 text-center mt-8 animate-fade-in">
+        <div class="bg-slate-800/50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-700 shadow-inner">
+            <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-500"></i>
         </div>
-        <h2 class="text-xl font-bold text-white mb-2">Aguardando Base de Dados</h2>
-        <p class="text-slate-400 text-sm max-w-xs mx-auto mb-6">
-            Carregue as planilhas do FNDE/Antonieta ou Portal da Transparência. O sistema cruzará Entes, Obras e Empresas.
+        <h2 class="text-xl font-bold text-white mb-2">Importar Base de Dados</h2>
+        <p class="text-slate-400 text-xs max-w-xs mx-auto mb-8 leading-relaxed">
+            Selecione as planilhas do <strong>Antonieta de Barros</strong> (Informações Gerais, Pagamentos, Contratos) para iniciar a Malha Fina automática.
         </p>
     </div>
 
-    <!-- LOADING OVERLAY -->
-    <div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-900/90 z-[60] flex-col items-center justify-center text-center px-6">
+    <!-- LOADING SCREEN -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-900/95 z-[60] flex-col items-center justify-center text-center px-6 backdrop-blur-sm">
         <div class="loader w-12 h-12 mb-4 border-4"></div>
         <h3 class="text-white font-bold text-lg mb-1" id="loadingTitle">Processando</h3>
-        <p class="text-slate-400 text-sm" id="loadingText">Lendo arquivos...</p>
-        <div id="apiProgress" class="w-full max-w-md bg-slate-700 rounded-full h-2.5 mt-4 hidden">
-            <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+        <p class="text-slate-400 text-sm mb-4" id="loadingText">Aguarde...</p>
+        <div class="w-full max-w-xs bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div id="progressBar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
         </div>
     </div>
 
-    <!-- DASHBOARD -->
-    <div id="mainContent" class="hidden px-4 mt-4">
+    <!-- ÁREA DE CONTEÚDO -->
+    <div id="mainContent" class="hidden px-4 mt-6">
         
-        <!-- ABAS DE RANKING -->
-        <div class="flex overflow-x-auto border-b border-slate-700 mb-4 gap-6 scrollbar-hide">
-            <button onclick="mudarAba('ENTES')" class="tab-btn active pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">ENTES FEDERATIVOS</button>
-            <button onclick="mudarAba('OBRAS')" class="tab-btn pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">OBRAS</button>
-            <button onclick="mudarAba('EMPRESAS')" class="tab-btn pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">EMPRESAS</button>
-            <button onclick="mudarAba('SOCIOS')" class="tab-btn pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">SÓCIOS (QSA)</button>
-        </div>
-
-        <!-- KPIs GERAIS (Aparecem sempre) -->
-        <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="card p-3 rounded-xl border-l-4 border-blue-500">
-                <div class="text-slate-400 text-[10px] font-bold uppercase">Total Mapeado</div>
-                <div class="text-xl font-black text-white" id="kpiTotal">0</div>
+        <!-- CABEÇALHO DA VISÃO -->
+        <div class="flex justify-between items-end mb-4 border-b border-slate-700 pb-2">
+            <div>
+                <h2 class="text-xl font-black text-white uppercase tracking-tight" id="viewTitle">Visão Geral</h2>
+                <p class="text-[10px] text-slate-400" id="viewSubtitle">Resultados da auditoria automática</p>
             </div>
-            <div class="card p-3 rounded-xl border-l-4 border-red-500">
-                <div class="text-red-400 text-[10px] font-bold uppercase">Risco Crítico</div>
-                <div class="text-xl font-black text-white" id="kpiRisk">0</div>
+            <div class="text-right">
+                <div class="text-2xl font-black text-orange-500" id="viewRiskCount">0</div>
+                <div class="text-[9px] font-bold text-slate-500 uppercase">Irregularidades</div>
             </div>
         </div>
 
         <!-- LISTA DE RESULTADOS -->
-        <div id="listaResultados" class="space-y-4">
-            <!-- Injetado via JS -->
+        <div id="resultsList" class="space-y-3 pb-8">
+            <!-- Inserido via JS -->
         </div>
 
-        <div class="text-center text-slate-600 text-xs mt-8 mb-4">
-            Fonte Primária: Arquivos Locais | Fonte Secundária: BrasilAPI/Dados.gov.br
-        </div>
+        <!-- PAGINAÇÃO -->
+        <button id="btnLoadMore" onclick="carregarMais()" class="hidden w-full py-3 bg-slate-800 text-slate-400 text-xs font-bold rounded-xl hover:bg-slate-700 transition">
+            CARREGAR MAIS
+        </button>
     </div>
 
-    <!-- SCRIPTS -->
+    <!-- JAVASCRIPT ENGINE -->
     <script>
         lucide.createIcons();
 
-        // Estado Global
-        let DB_OBRAS = [];
-        let DB_EMPRESAS = {}; // Mapa CNPJ -> Dados
-        let DB_SOCIOS = [];   // Lista plana de sócios
-        let VIEW_MODE = 'ENTES';
+        // --- ESTADO ---
+        let DB = { obras: [], empresas: {}, entes: {} };
+        let VIEW = { mode: 'DASHBOARD', page: 0, pageSize: 50, currentList: [] };
 
-        // ==========================================
-        // 1. LEITURA DE ARQUIVOS
-        // ==========================================
-        async function processarArquivos(input) {
-            const files = input.files;
+        // ============================================================
+        // 1. LEITURA HÍBRIDA (CSV + EXCEL)
+        // ============================================================
+        async function iniciarProcessamento(input) {
+            const files = Array.from(input.files);
             if (!files.length) return;
 
-            toggleLoading(true, "Lendo Base de Dados...");
-            
-            let rawData = { geral: [], contrato: [], pagamentos: [], prefeitura: [] };
+            toggleLoader(true, "Lendo arquivos...");
+            let rawData = { geral: [], contrato: [], pagamentos: [], termos: [], historico: [] };
+            let processed = 0;
 
-            for (let i = 0; i < files.length; i++) {
-                try {
-                    const data = await lerArquivoExcel(files[i]);
-                    categorizarArquivo(data, files[i].name, rawData);
-                } catch (e) { console.error(e); }
-            }
+            const updateProg = () => {
+                processed++;
+                document.getElementById('progressBar').style.width = `${(processed / files.length) * 100}%`;
+            };
 
-            setTimeout(() => {
-                cruzarDados(rawData);
-                // Habilita o botão de API se tivermos empresas
-                if (Object.keys(DB_EMPRESAS).length > 0) {
-                    const btn = document.getElementById('btnApi');
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            const promises = files.map(file => new Promise(resolve => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                
+                if (ext === 'csv') {
+                    Papa.parse(file, {
+                        header: true, skipEmptyLines: true, worker: true, encoding: "ISO-8859-1",
+                        complete: (res) => { categorizar(res.data, file.name, rawData); updateProg(); resolve(); },
+                        error: () => { updateProg(); resolve(); }
+                    });
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+                            categorizar(json, file.name, rawData);
+                        } catch(e) {}
+                        updateProg(); resolve();
+                    };
+                    reader.readAsArrayBuffer(file);
                 }
-                toggleLoading(false);
-            }, 500);
+            }));
+
+            await Promise.all(promises);
+            document.getElementById('loadingText').innerText = "Aplicando Malha Fina (18 Regras)...";
+            setTimeout(() => processarMalhaFina(rawData), 200);
         }
 
-        function lerArquivoExcel(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    resolve(XLSX.utils.sheet_to_json(firstSheet, { defval: "" }));
-                };
-                reader.onerror = reject;
-                reader.readAsArrayBuffer(file);
-            });
-        }
-
-        function categorizarArquivo(json, filename, store) {
-            if (!json || !json.length) return;
-            const keys = Object.keys(json[0]).map(k => k.toLowerCase());
-            const fname = filename.toLowerCase();
-
-            if (fname.includes("geral") || keys.includes("situação da obra")) store.geral = store.geral.concat(json);
-            else if (fname.includes("contrata") || keys.includes("valor do contrato")) store.contrato = store.contrato.concat(json);
-            else if (fname.includes("pagamento") || keys.includes("valor da nota fiscal (r$)")) store.pagamentos = store.pagamentos.concat(json);
-            else if (fname.includes("prefeitura")) store.prefeitura = store.prefeitura.concat(json);
-        }
-
-        // ==========================================
-        // 2. PROCESSAMENTO E CRUZAMENTO
-        // ==========================================
-        function cruzarDados(raw) {
-            const mapa = {};
+        function categorizar(json, fname, store) {
+            fname = fname.toLowerCase();
+            const keys = json[0] ? Object.keys(json[0]).map(k => k.toLowerCase()) : [];
             
-            // Base: Geral ou Contrato
+            if (fname.includes("geral") || keys.includes("situação da obra")) store.geral.push(...json);
+            else if (fname.includes("contrata")) store.contrato.push(...json);
+            else if (fname.includes("pagamento") || keys.includes("valor da nota fiscal (r$)")) store.pagamentos.push(...json);
+            else if (fname.includes("termos") || keys.includes("número do termo")) store.termos.push(...json);
+            else if (fname.includes("histórico")) store.historico.push(...json);
+        }
+
+        // ============================================================
+        // 2. MOTOR DE MALHA FINA (18 REGRAS)
+        // ============================================================
+        function processarMalhaFina(raw) {
+            DB = { obras: [], empresas: {}, entes: {} };
+            const mapObras = {};
+
+            // Indexar Financeiro
+            const pagamentos = {};
+            raw.pagamentos.forEach(row => {
+                const id = row["ID da obra"] || row["ID"];
+                const val = parseMoney(row["Valor da nota fiscal (R$)"] || row["Valor"]);
+                if(id) pagamentos[id] = (pagamentos[id] || 0) + val;
+            });
+
+            // Base Principal
             const base = raw.geral.length ? raw.geral : raw.contrato;
             
             base.forEach(row => {
                 const id = row["ID da obra"] || row["ID"];
-                if (!id) return;
-                
-                mapa[id] = {
+                if(!id) return;
+
+                const obra = {
                     id: id,
-                    nome: row["Nome da obra"] || row["Objeto"] || "Obra sem nome",
-                    municipio: row["Município"] || "N/A",
+                    nome: row["Nome da obra"] || "Obra Sem Nome",
+                    municipio: row["Município"] || "Desconhecido",
                     uf: row["UF"] || "",
-                    ente: row["Esfera"] === "Estadual" ? "Governo Estadual" : (row["Município"] ? `Pref. ${row["Município"]}` : "Ente Desconhecido"),
+                    ente: row["Município"] ? `Pref. ${row["Município"]}` : "Governo Estadual",
                     status: row["Situação da obra"] || "N/A",
                     fisico: parseMoney(row["Percentual de execução"] || row["% Medição física acumulada"]),
                     financeiro: 0,
                     valor: 0,
-                    empresa: "Não Identificada",
-                    cnpj_empresa: null,
-                    inicio: null,
-                    fim: null,
-                    score: 0,
-                    flags: []
+                    empresa: "Não Informada",
+                    cnpj: null,
+                    data_termo: parseDate(row["Data da assinatura do termo"]),
+                    data_inicio: null,
+                    data_fim: null,
+                    suspeitas: [],
+                    score: 0
                 };
+                mapObras[id] = obra;
             });
 
-            // Enriquecer com Contratos (Para pegar Empresa)
+            // Enriquecer e Auditar
             raw.contrato.forEach(row => {
                 const id = row["ID da obra"];
-                if (mapa[id]) {
-                    mapa[id].valor = parseMoney(row["Valor do contrato"]);
+                if(mapObras[id]) {
+                    mapObras[id].valor = parseMoney(row["Valor do contrato"]);
+                    mapObras[id].data_inicio = parseDate(row["Data de início da execução"]);
+                    mapObras[id].data_fim = parseDate(row["Data de término do contrato"]);
                     
-                    // Extração de CNPJ e Nome da string "CNPJ - NOME"
+                    // Extrair Empresa
                     const empStr = row["Empresa contratada"];
-                    if (empStr) {
-                        const match = empStr.match(/\((\d+)\)\s*(.*)/); // Tenta achar (CNPJ) NOME
-                        if (match) {
-                            mapa[id].cnpj_empresa = match[1]; // Apenas números
-                            mapa[id].empresa = match[2];
-                        } else {
-                            mapa[id].empresa = empStr;
-                        }
+                    if(empStr) {
+                        const m = empStr.match(/\((\d+)\)\s*(.*)/);
+                        if(m) { mapObras[id].cnpj = m[1]; mapObras[id].empresa = m[2]; }
+                        else mapObras[id].empresa = empStr;
                     }
-                    
-                    if(row["Data de início da execução"]) mapa[id].inicio = parseData(row["Data de início da execução"]);
-                    if(row["Data de término do contrato"]) mapa[id].fim = parseData(row["Data de término do contrato"]);
                 }
             });
 
-            // Enriquecer com Pagamentos
-            const pagamentosMap = {};
-            raw.pagamentos.forEach(row => {
-                const id = row["ID da obra"];
-                const val = parseMoney(row["Valor da nota fiscal (R$)"] || row["Valor"]);
-                if(id) pagamentosMap[id] = (pagamentosMap[id] || 0) + val;
-            });
-
-            // Finalizar Obras e Popular Empresas
-            DB_OBRAS = Object.values(mapa).map(obra => {
+            // Executar Regras
+            Object.values(mapObras).forEach(obra => {
                 // Cálculo Financeiro
-                const pago = pagamentosMap[obra.id] || 0;
-                if (obra.valor > 0) obra.financeiro = (pago / obra.valor) * 100;
+                if(obra.valor > 0) obra.financeiro = (pagamentos[obra.id] || 0) / obra.valor * 100;
                 
-                // Cálculo Risco
-                const risco = calcularRisco(obra);
-                obra.score = risco.score;
-                obra.flags = risco.flags;
+                aplicarRegras(obra);
+                
+                // Popula DB
+                DB.obras.push(obra);
+                
+                // Agrega Ente
+                if(!DB.entes[obra.municipio]) DB.entes[obra.municipio] = { nome: obra.municipio, uf: obra.uf, obras: 0, riscos: 0, valor: 0, lista_suspeitas: new Set() };
+                DB.entes[obra.municipio].obras++;
+                DB.entes[obra.municipio].valor += obra.valor;
+                DB.entes[obra.municipio].riscos += obra.score;
+                obra.suspeitas.forEach(s => DB.entes[obra.municipio].lista_suspeitas.add(s));
 
-                // Popular DB de Empresas
-                if (obra.cnpj_empresa) {
-                    if (!DB_EMPRESAS[obra.cnpj_empresa]) {
-                        DB_EMPRESAS[obra.cnpj_empresa] = {
-                            cnpj: obra.cnpj_empresa,
-                            nome: obra.empresa,
-                            total_obras: 0,
-                            valor_total: 0,
-                            risco_acumulado: 0,
-                            socios: [] // Será preenchido pela API
-                        };
-                    }
-                    DB_EMPRESAS[obra.cnpj_empresa].total_obras++;
-                    DB_EMPRESAS[obra.cnpj_empresa].valor_total += obra.valor;
-                    DB_EMPRESAS[obra.cnpj_empresa].risco_acumulado += obra.score;
+                // Agrega Empresa
+                if(obra.cnpj) {
+                    if(!DB.empresas[obra.cnpj]) DB.empresas[obra.cnpj] = { cnpj: obra.cnpj, nome: obra.empresa, obras: 0, riscos: 0, valor: 0, socios: [], status_api: 'Pendente' };
+                    DB.empresas[obra.cnpj].obras++;
+                    DB.empresas[obra.cnpj].valor += obra.valor;
+                    DB.empresas[obra.cnpj].riscos += obra.score;
                 }
-
-                return obra;
             });
 
-            DB_OBRAS.sort((a, b) => b.score - a.score);
+            DB.obras.sort((a,b) => b.score - a.score);
+            
+            // Habilitar UI
+            document.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
+            toggleLoader(false);
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('mainContent').classList.remove('hidden');
+            auditar('ENTES'); // Tela inicial
+        }
+
+        function aplicarRegras(obra) {
+            const hoje = new Date();
+            const diasDecorridos = obra.data_inicio ? diffDays(obra.data_inicio, hoje) : 0;
+            
+            // 1. Paralisia (<5% em 120 dias ou <15% em 1 ano)
+            if (diasDecorridos > 120 && obra.fisico < 5) {
+                flag(obra, 20, "Paralisia Inicial (<5% em 120 dias)");
+            }
+            if (diasDecorridos > 365 && obra.fisico < 15) {
+                flag(obra, 20, "Lentidão Crítica (<15% em 1 ano)");
+            }
+
+            // 2. Descompasso Financeiro
+            if ((obra.financeiro - obra.fisico) > 10) {
+                flag(obra, 20, `Sobrefaturamento (>10%): Pago ${obra.financeiro.toFixed(0)}% vs Feito ${obra.fisico.toFixed(0)}%`);
+            }
+            
+            // 3. Prazos
+            if (obra.data_fim && hoje > obra.data_fim && obra.fisico < 98) {
+                flag(obra, 15, "Vigência Expirada sem Conclusão");
+            }
+
+            // 4. Falta de OS (12 meses do Termo)
+            if (obra.data_termo && !obra.data_inicio) {
+                if (diffDays(obra.data_termo, hoje) > 365) {
+                    flag(obra, 15, "Sem Ordem de Serviço há >12 meses");
+                }
+            }
+
+            // 5. Situação FNDE
+            if (['Indeferido', 'Cancelado', 'Inadimplente'].includes(obra.status)) {
+                flag(obra, 10, `Situação FNDE: ${obra.status}`);
+            }
+
+            // 6. Risco Societário (Heurística Local)
+            if (obra.empresa.includes("EIRELI") && obra.valor > 2000000) {
+                flag(obra, 25, "Risco: Empresa EIRELI em contrato vultuoso");
+            }
+        }
+
+        function flag(obra, pts, msg) {
+            obra.score += pts;
+            obra.suspeitas.push(msg);
+        }
+
+        // ============================================================
+        // 3. AÇÕES DOS BOTÕES (AUDITORIA)
+        // ============================================================
+        
+        function auditar(tipo) {
+            VIEW.mode = tipo;
+            VIEW.page = 0;
+            
+            document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
+            event.currentTarget?.classList.add('bg-blue-600', 'text-white'); // Highlight ativo
+
+            if (tipo === 'ENTES') {
+                document.getElementById('viewTitle').innerText = "AUDITORIA DE ENTES";
+                document.getElementById('viewSubtitle').innerText = "Rankings de transparência e riscos acumulados por gestão.";
+                VIEW.currentList = Object.values(DB.entes).sort((a,b) => b.riscos - a.riscos);
+            } 
+            else if (tipo === 'CONTRATOS') {
+                document.getElementById('viewTitle').innerText = "AUDITORIA DE CONTRATOS (PNCP)";
+                document.getElementById('viewSubtitle').innerText = "Monitoramento de vigência, execução e irregularidades contratuais.";
+                VIEW.currentList = DB.obras;
+            } 
+            else if (tipo === 'EMPRESAS') {
+                document.getElementById('viewTitle').innerText = "AUDITORIA DE EMPRESAS";
+                document.getElementById('viewSubtitle').innerText = "Verificação de capital social, débitos e capacidade operacional.";
+                VIEW.currentList = Object.values(DB.empresas).sort((a,b) => b.riscos - a.riscos);
+                
+                // Auto-trigger API se houver poucas empresas para não cansar o usuário
+                if(VIEW.currentList.length < 50 && VIEW.currentList[0].status_api === 'Pendente') consultarAPIEmMassa();
+            } 
+            else if (tipo === 'SOCIOS') {
+                document.getElementById('viewTitle').innerText = "AUDITORIA DE SÓCIOS (QSA)";
+                document.getElementById('viewSubtitle').innerText = "Varredura de laranjas, idade de risco e vínculos políticos.";
+                // Precisa ter rodado API de empresas primeiro
+                const sociosMap = {};
+                Object.values(DB.empresas).forEach(e => {
+                    e.socios.forEach(s => {
+                        if(!sociosMap[s.nome]) sociosMap[s.nome] = { nome: s.nome, empresas: new Set(), riscos: [] };
+                        sociosMap[s.nome].empresas.add(e.nome);
+                        // Regra idade (Simulada pois API as vezes falha idade)
+                        if(s.faixa_etaria === 'Entre 16 a 20 anos' || s.faixa_etaria === 'Acima de 70 anos') sociosMap[s.nome].riscos.push("Idade de Risco");
+                    });
+                });
+                VIEW.currentList = Object.values(sociosMap).sort((a,b) => b.empresas.size - a.empresas.size);
+                
+                if(VIEW.currentList.length === 0) {
+                     alert("Para ver sócios, é necessário primeiro clicar em 'AUDITAR EMPRESAS' para buscar dados na Receita Federal.");
+                     auditar('EMPRESAS');
+                     return;
+                }
+            }
+
+            document.getElementById('viewRiskCount').innerText = VIEW.currentList.reduce((acc, i) => acc + (i.score || i.riscos || 0), 0);
             renderizar();
         }
 
-        function calcularRisco(obra) {
-            let score = 0;
-            let flags = [];
+        // --- INTEGRAÇÃO API EXTERNA ---
+        async function consultarAPIEmMassa() {
+            if(!confirm("Consultar Receita Federal (BrasilAPI) para verificar QSA e Capital Social?")) return;
             
-            const hoje = new Date();
-            const diasObra = obra.inicio ? Math.floor((hoje - obra.inicio) / (1000 * 60 * 60 * 24)) : 0;
-            
-            // 1. Paralisia
-            if (obra.status.toLowerCase().includes("parali") || (diasObra > 180 && obra.fisico < 5)) {
-                score += 20;
-                flags.push("Paralisia Crítica");
-            }
-            // 2. Sobrefaturamento
-            if ((obra.financeiro - obra.fisico) > 15) {
-                score += 20;
-                flags.push("Sobrefaturamento (>15%)");
-            }
-            // 3. EIRELI/Risco (Heurística de nome)
-            if (obra.empresa && (obra.empresa.includes("EIRELI") || obra.empresa.includes("ME")) && obra.valor > 1000000) {
-                score += 25;
-                flags.push("Empresa Pequena / Contrato Grande");
-            }
+            toggleLoader(true, "Consultando Receita Federal...");
+            const cnpjs = Object.keys(DB.empresas);
+            let done = 0;
 
-            return { score, flags };
-        }
-
-        // ==========================================
-        // 3. INTEGRAÇÃO COM API REAL (DADOS.GOV / BRASILAPI)
-        // ==========================================
-        async function acionarAPIs() {
-            const cnpjs = Object.keys(DB_EMPRESAS);
-            if (cnpjs.length === 0) return alert("Nenhuma empresa identificada para consulta.");
-
-            if (!confirm(`Deseja consultar dados reais na BrasilAPI para ${cnpjs.length} empresas? Isso pode levar algum tempo.`)) return;
-
-            toggleLoading(true, "Consultando APIs Públicas...");
-            document.getElementById('apiProgress').classList.remove('hidden');
-            
-            let processados = 0;
-            DB_SOCIOS = []; // Limpa sócios anteriores
-
-            // Processamento em lote com delay para não bloquear API
-            for (const cnpj of cnpjs) {
+            for (const c => cnpjs) {
+                if(done >= cnpjs.length) break;
+                const cnpj = cnpjs[done];
+                
                 try {
-                    document.getElementById('loadingText').innerText = `Consultando CNPJ: ${cnpj}...`;
-                    
-                    // FETCH REAL NA API
-                    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
-                    
-                    if (response.ok) {
-                        const dados = await response.json();
+                    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+                    if(res.ok) {
+                        const json = await res.json();
+                        const emp = DB.empresas[cnpj];
+                        emp.status_api = 'Atualizado';
+                        emp.capital_social = json.capital_social;
                         
-                        // Atualiza Empresa
-                        if (DB_EMPRESAS[cnpj]) {
-                            DB_EMPRESAS[cnpj].nome_oficial = dados.razao_social;
-                            DB_EMPRESAS[cnpj].capital_social = dados.capital_social;
-                            
-                            // Processa Sócios (QSA)
-                            if (dados.qsa) {
-                                dados.qsa.forEach(socio => {
-                                    DB_EMPRESAS[cnpj].socios.push(socio);
-                                    DB_SOCIOS.push({
-                                        nome: socio.nome_socio,
-                                        qualificacao: socio.qualificacao_socio,
-                                        empresa_vinculada: dados.razao_social,
-                                        cnpj_vinculado: cnpj,
-                                        faixa_etaria: socio.faixa_etaria // Às vezes disponível
-                                    });
-                                });
-                            }
+                        // Regra Capital Social vs Valor Contrato
+                        if(emp.valor_total > (json.capital_social * 10)) {
+                            emp.riscos += 30; // Pontuação alta
+                            // Flag em todas as obras dessa empresa
+                            DB.obras.filter(o => o.cnpj === cnpj).forEach(o => {
+                                o.score += 30;
+                                o.suspeitas.push(`Empresa tem Capital Social incompatível (${formatMoney(json.capital_social)})`);
+                            });
+                        }
+
+                        if(json.qsa) {
+                            json.qsa.forEach(s => emp.socios.push({ 
+                                nome: s.nome_socio, 
+                                faixa_etaria: s.faixa_etaria,
+                                qual: s.qualificacao_socio 
+                            }));
                         }
                     }
-                } catch (err) {
-                    console.warn(`Falha API CNPJ ${cnpj}:`, err);
-                }
+                } catch(e) { console.log(e); }
 
-                processados++;
-                // Atualiza barra de progresso
-                document.querySelector('#apiProgress div').style.width = `${(processados / cnpjs.length) * 100}%`;
-                
-                // Pequeno delay para evitar Rate Limit (429)
-                await new Promise(r => setTimeout(r, 600));
+                done++;
+                document.getElementById('progressBar').style.width = `${(done/cnpjs.length)*100}%`;
+                await new Promise(r => setTimeout(r, 600)); // Rate limit protection
+            }
+            toggleLoader(false);
+            auditar(VIEW.mode); // Re-render
+        }
+
+        // ============================================================
+        // 4. RENDERIZAÇÃO
+        // ============================================================
+        function renderizar(append = false) {
+            const container = document.getElementById('resultsList');
+            if(!append) container.innerHTML = "";
+
+            const start = VIEW.page * VIEW.pageSize;
+            const slice = VIEW.currentList.slice(start, start + VIEW.pageSize);
+
+            if(slice.length === 0 && !append) {
+                container.innerHTML = `<div class="text-center text-slate-500 py-10">Nenhum registro encontrado.</div>`;
+                document.getElementById('btnLoadMore').classList.add('hidden');
+                return;
             }
 
-            alert("Consulta finalizada! Aba 'Sócios' e 'Empresas' atualizada com dados oficiais.");
-            toggleLoading(false);
-            renderizar();
-        }
-
-        // ==========================================
-        // 4. RENDERIZAÇÃO E RANKINGS
-        // ==========================================
-        function mudarAba(aba) {
-            VIEW_MODE = aba;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active', 'text-blue-500'));
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                if(b.textContent.includes(aba.substring(0,4))) {
-                    b.classList.add('active');
-                    b.classList.remove('text-slate-400');
-                    b.classList.add('text-blue-500');
+            slice.forEach(item => {
+                let html = "";
+                
+                if (VIEW.mode === 'ENTES') {
+                    const susps = Array.from(item.lista_suspeitas).slice(0, 3);
+                    html = `
+                    <div class="card p-4 rounded-xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="text-white font-bold text-sm">${item.nome} <span class="text-slate-500 text-[10px]">${item.uf}</span></h3>
+                            <div class="text-right">
+                                <div class="text-lg font-black text-orange-500">${item.riscos} Pts</div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-800/50 p-2 rounded text-xs text-slate-300 mb-2 grid grid-cols-2 gap-2">
+                            <div>Obras: <b>${item.obras}</b></div>
+                            <div>Total: <b class="text-emerald-400">${formatMoney(item.valor)}</b></div>
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            ${susps.map(s => `<span class="risk-badge risk-warning">${s}</span>`).join('')}
+                            ${item.lista_suspeitas.size > 3 ? `<span class="text-[9px] text-slate-500">+${item.lista_suspeitas.size - 3} alertas</span>` : ''}
+                        </div>
+                    </div>`;
                 }
+                else if (VIEW.mode === 'CONTRATOS') {
+                    // Deep Links para PNCP e Transparência
+                    const linkPNCP = `https://pncp.gov.br/app/editais?q=${encodeURIComponent(item.nome)}`;
+                    const linkTransp = `https://portaldatransparencia.gov.br/busca?termo=${encodeURIComponent(item.nome)}`;
+                    
+                    html = `
+                    <div class="card p-3 rounded-xl border-l-4 ${item.score >= 20 ? 'border-red-500' : 'border-emerald-500'}">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="bg-slate-700 text-white text-[10px] px-1.5 rounded font-mono">${item.id}</span>
+                            <span class="text-[10px] text-slate-400 truncate max-w-[120px]">${item.municipio}</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white leading-tight mb-2">${item.nome}</h3>
+                        
+                        <div class="flex gap-2 mb-3">
+                            <a href="${linkPNCP}" target="_blank" class="flex-1 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 text-[10px] py-1.5 rounded text-center border border-blue-900 transition">
+                                <i data-lucide="search" class="w-3 h-3 inline"></i> Consultar PNCP
+                            </a>
+                            <a href="${linkTransp}" target="_blank" class="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 text-[10px] py-1.5 rounded text-center border border-emerald-900 transition">
+                                <i data-lucide="external-link" class="w-3 h-3 inline"></i> Transparência
+                            </a>
+                        </div>
+
+                        <div class="bg-slate-900/50 rounded p-2 mb-2 text-[10px]">
+                            <div class="flex justify-between mb-1"><span>Físico:</span> <b class="text-blue-400">${item.fisico.toFixed(1)}%</b></div>
+                            <div class="flex justify-between"><span>Financeiro:</span> <b class="${item.financeiro > item.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}">${item.financeiro.toFixed(1)}%</b></div>
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            ${item.suspeitas.map(s => `<span class="risk-badge risk-critical flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> ${s}</span>`).join('')}
+                        </div>
+                    </div>`;
+                }
+                else if (VIEW.mode === 'EMPRESAS') {
+                    html = `
+                    <div class="card p-4 rounded-xl">
+                        <div class="flex justify-between mb-2">
+                            <h3 class="text-white font-bold text-sm truncate max-w-[200px]">${item.nome}</h3>
+                            <span class="text-orange-500 font-bold text-xs">${item.riscos} Pts</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 font-mono mb-2">CNPJ: ${item.cnpj} | API: ${item.status_api}</p>
+                        ${item.capital_social ? `<div class="text-[10px] text-slate-300 mb-1">Capital Social: <b>${formatMoney(item.capital_social)}</b></div>` : ''}
+                        <div class="text-xs bg-slate-800 p-2 rounded text-slate-300 flex justify-between">
+                            <span><b>${item.obras}</b> Obras</span>
+                            <span>Total: <b class="text-emerald-400">${formatMoney(item.valor)}</b></span>
+                        </div>
+                    </div>`;
+                }
+                else if (VIEW.mode === 'SOCIOS') {
+                    html = `
+                    <div class="card p-3 rounded-xl flex items-center gap-3">
+                        <div class="bg-slate-700 p-2 rounded-full"><i data-lucide="user" class="w-4 h-4 text-slate-300"></i></div>
+                        <div class="flex-1">
+                            <h3 class="text-white font-bold text-sm">${item.nome}</h3>
+                            <p class="text-[10px] text-slate-400 truncate w-48">Vinculado a: ${Array.from(item.empresas).join(', ')}</p>
+                        </div>
+                        ${item.riscos.length > 0 ? `<div class="text-[9px] bg-red-900/50 text-red-200 px-2 py-1 rounded">ALERTA</div>` : ''}
+                    </div>`;
+                }
+
+                container.insertAdjacentHTML('beforeend', html);
             });
-            renderizar();
-        }
 
-        function renderizar() {
-            document.getElementById('statusArea').classList.add('hidden');
-            document.getElementById('mainContent').classList.remove('hidden');
-            const container = document.getElementById('listaResultados');
-            container.innerHTML = "";
-
-            // Atualiza KPIs Globais
-            document.getElementById('kpiTotal').innerText = DB_OBRAS.length;
-            document.getElementById('kpiRisk').innerText = DB_OBRAS.filter(o => o.score >= 50).length;
-
-            if (VIEW_MODE === 'ENTES') renderEntes(container);
-            else if (VIEW_MODE === 'OBRAS') renderObras(container);
-            else if (VIEW_MODE === 'EMPRESAS') renderEmpresas(container);
-            else if (VIEW_MODE === 'SOCIOS') renderSocios(container);
+            if (start + VIEW.pageSize < VIEW.currentList.length) document.getElementById('btnLoadMore').classList.remove('hidden');
+            else document.getElementById('btnLoadMore').classList.add('hidden');
             
             lucide.createIcons();
         }
 
-        // --- RANKING: ENTES FEDERATIVOS ---
-        function renderEntes(container) {
-            const entes = {};
-            DB_OBRAS.forEach(o => {
-                if (!entes[o.municipio]) entes[o.municipio] = { nome: o.municipio, uf: o.uf, obras: 0, risco_total: 0, valor_total: 0 };
-                entes[o.municipio].obras++;
-                entes[o.municipio].risco_total += o.score;
-                entes[o.municipio].valor_total += o.valor;
-            });
-
-            const ranking = Object.values(entes).sort((a, b) => b.risco_total - a.risco_total);
-
-            ranking.forEach((ente, idx) => {
-                container.innerHTML += `
-                    <div class="card p-4 rounded-xl flex items-center gap-4">
-                        <div class="text-2xl font-black text-slate-500 w-8">#${idx+1}</div>
-                        <div class="flex-1">
-                            <h3 class="text-white font-bold text-lg">${ente.nome} <span class="text-xs bg-slate-700 px-1 rounded">${ente.uf}</span></h3>
-                            <div class="text-xs text-slate-400 mt-1">
-                                ${ente.obras} Obras | Vol. Financeiro: <span class="text-emerald-400">${formatMoney(ente.valor_total)}</span>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-2xl font-black text-orange-500">${ente.risco_total}</div>
-                            <div class="text-[9px] uppercase font-bold text-slate-500">Pts Risco</div>
-                        </div>
-                    </div>
-                `;
-            });
+        function carregarMais() {
+            VIEW.page++;
+            renderizar(true);
         }
 
-        // --- RANKING: OBRAS ---
-        function renderObras(container) {
-            DB_OBRAS.forEach(obra => {
-                let badge = obra.score >= 50 ? 'badge-critical' : (obra.score >= 20 ? 'badge-medium' : 'badge-low');
-                
-                container.innerHTML += `
-                    <div class="card rounded-xl overflow-hidden flex">
-                        <div class="w-16 ${badge} flex flex-col items-center justify-center text-white shrink-0">
-                            <span class="font-black text-xl">${obra.score}</span>
-                        </div>
-                        <div class="p-3 flex-1 min-w-0">
-                            <div class="flex justify-between items-start mb-1">
-                                <span class="text-[10px] bg-slate-700 text-slate-300 px-1 rounded">${obra.id}</span>
-                                <span class="text-[10px] text-slate-400 truncate">${obra.municipio}</span>
-                            </div>
-                            <h3 class="text-sm font-bold text-white leading-tight truncate mb-2">${obra.nome}</h3>
-                            <div class="flex gap-2 text-[10px] text-slate-400 mb-2">
-                                <div class="flex-1 bg-slate-800 p-1 rounded">Físico: <b class="text-blue-400">${obra.fisico.toFixed(1)}%</b></div>
-                                <div class="flex-1 bg-slate-800 p-1 rounded">Pago: <b class="${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}">${obra.financeiro.toFixed(1)}%</b></div>
-                            </div>
-                            <div class="flex flex-wrap gap-1">
-                                ${obra.flags.map(f => `<span class="text-[9px] border border-red-500/30 text-red-300 px-1 rounded">${f}</span>`).join('')}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        // --- RANKING: EMPRESAS ---
-        function renderEmpresas(container) {
-            const ranking = Object.values(DB_EMPRESAS).sort((a, b) => b.risco_acumulado - a.risco_acumulado);
-
-            if (ranking.length === 0) container.innerHTML = `<div class="text-center text-slate-500 py-4">Nenhuma empresa identificada nos contratos.</div>`;
-
-            ranking.forEach(emp => {
-                container.innerHTML += `
-                    <div class="card p-4 rounded-xl">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="text-white font-bold text-sm">${emp.nome}</h3>
-                                <p class="text-[10px] text-slate-400 font-mono">CNPJ: ${emp.cnpj}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="bg-slate-700 text-white text-[10px] px-2 py-1 rounded font-bold">${emp.total_obras} Obras</span>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 text-xs text-slate-400 bg-slate-800/50 p-2 rounded">
-                            <div>Contratos: <span class="text-emerald-400 block font-bold">${formatMoney(emp.valor_total)}</span></div>
-                            <div>Risco Acumulado: <span class="text-orange-500 block font-bold">${emp.risco_acumulado} Pts</span></div>
-                        </div>
-                        ${emp.socios.length > 0 ? `
-                            <div class="mt-2 pt-2 border-t border-slate-700">
-                                <p class="text-[9px] text-slate-500 uppercase font-bold mb-1">Quadro Societário (QSA)</p>
-                                <div class="flex flex-wrap gap-1">
-                                    ${emp.socios.map(s => `<span class="text-[10px] bg-slate-700 px-1.5 rounded text-slate-300">${s.nome_socio}</span>`).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            });
-        }
-
-        // --- RANKING: SÓCIOS ---
-        function renderSocios(container) {
-            if (DB_SOCIOS.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-8">
-                        <i data-lucide="users" class="w-12 h-12 text-slate-600 mx-auto mb-2"></i>
-                        <p class="text-slate-400 text-sm">Dados de sócios não carregados.</p>
-                        <p class="text-xs text-slate-500 mt-2 max-w-xs mx-auto">Clique no botão <b>"CONSULTAR API (CNPJ)"</b> no topo para buscar o Quadro de Sócios na Receita Federal.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // Agrupa sócios por nome (pode haver homônimos, mas é uma aproximação)
-            const mapSocios = {};
-            DB_SOCIOS.forEach(s => {
-                if (!mapSocios[s.nome]) mapSocios[s.nome] = { nome: s.nome, empresas: [], qualificacao: s.qualificacao };
-                mapSocios[s.nome].empresas.push(s.empresa_vinculada);
-            });
-
-            const ranking = Object.values(mapSocios).sort((a, b) => b.empresas.length - a.empresas.length);
-
-            ranking.forEach(socio => {
-                container.innerHTML += `
-                    <div class="card p-3 rounded-xl flex items-center gap-3">
-                        <div class="bg-slate-700 p-2 rounded-full"><i data-lucide="user" class="w-4 h-4 text-slate-300"></i></div>
-                        <div class="flex-1">
-                            <h3 class="text-white font-bold text-sm">${socio.nome}</h3>
-                            <p class="text-[10px] text-slate-400 truncate w-48">${[...new Set(socio.empresas)].join(', ')}</p>
-                        </div>
-                        <div class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 font-bold">
-                            ${socio.empresas.length} Empresas
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        // ==========================================
-        // HELPERS
-        // ==========================================
-        function toggleLoading(show, msg) {
+        // ============================================================
+        // UTILS
+        // ============================================================
+        function toggleLoader(show, msg) {
             const el = document.getElementById('loadingOverlay');
-            if(show) {
-                el.classList.remove('hidden');
-                el.classList.add('flex');
-                document.getElementById('loadingText').innerText = msg;
-            } else {
-                el.classList.add('hidden');
-                el.classList.remove('flex');
-            }
+            if(show) { el.classList.remove('hidden'); el.classList.add('flex'); document.getElementById('loadingText').innerText = msg; }
+            else { el.classList.add('hidden'); el.classList.remove('flex'); }
         }
+        function parseMoney(v) { if(!v) return 0; if(typeof v === 'number') return v; return parseFloat(v.toString().replace("R$","").trim().replace(/\./g,"").replace(",",".")) || 0; }
+        function parseDate(d) { if(!d) return null; if(typeof d === 'number') return new Date(Math.round((d-25569)*86400*1000)); const p = d.split(/[\/\-]/); return p.length===3 ? new Date(p[2],p[1]-1,p[0]) : null; }
+        function diffDays(d1, d2) { return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24)); }
+        function formatMoney(v) { return (v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }); }
 
-        function parseMoney(val) {
-            if (!val) return 0;
-            if (typeof val === 'number') return val;
-            let clean = val.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
-            clean = clean.replace("%", "");
-            return parseFloat(clean) || 0;
-        }
-
-        function parseData(dateStr) {
-            if (!dateStr) return null;
-            if (typeof dateStr === 'number') return new Date(Math.round((dateStr - 25569)*86400*1000));
-            const parts = dateStr.split(/[\/\-]/);
-            if (parts.length === 3) {
-                if (parts[0].length === 4) return new Date(parts[0], parts[1]-1, parts[2]);
-                return new Date(parts[2], parts[1]-1, parts[0]);
-            }
-            return null;
-        }
-
-        function formatMoney(val) {
-            return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' });
-        }
     </script>
 </body>
 </html>
