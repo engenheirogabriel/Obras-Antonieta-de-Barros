@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FTC Transparência - Fiscalização de Obras</title>
+    <title>FTC Transparência - Ranking de Riscos</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,30 +11,29 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- PapaParse (CSV Engine) -->
+    <!-- PapaParse (CSV) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <!-- SheetJS (Excel Engine) -->
+    <!-- SheetJS (Excel/ODS) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #e2e8f0; }
         .glass { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .card { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); transition: all 0.2s; }
-        .card:active { transform: scale(0.99); background: rgba(30, 41, 59, 0.8); }
+        .card { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); transition: transform 0.2s; }
+        .card:active { transform: scale(0.99); }
         
-        /* Badges e Risco */
-        .risk-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; }
-        .risk-critical { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
-        .risk-warning { background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid rgba(249,115,22,0.4); }
+        /* Sistema de Cores por Peso de Risco */
+        .risk-tag-5 { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }   /* Peso 5 */
+        .risk-tag-10 { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }  /* Peso 10 */
+        .risk-tag-15 { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }    /* Peso 15 */
+        .risk-tag-20 { background: rgba(249, 115, 22, 0.15); color: #fdba74; border: 1px solid rgba(249, 115, 22, 0.3); }  /* Peso 20 */
+        .risk-tag-25 { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }    /* Peso 25 */
+
+        .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.1); }
         
-        /* Loader e Progress */
         .loader { border: 3px solid rgba(255,255,255,0.1); border-left-color: #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        
-        /* Scroll Hide */
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="pb-24">
@@ -43,177 +42,173 @@
     <nav class="glass sticky top-0 z-50 px-4 py-3 shadow-2xl">
         <div class="flex justify-between items-center mb-4">
             <div class="flex items-center gap-3">
-                <div class="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-900/50">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-lg">
                     <i data-lucide="search-check" class="text-white w-5 h-5"></i>
                 </div>
                 <div>
                     <h1 class="font-black text-white text-lg leading-none tracking-tight">FTC <span class="text-blue-500">TRANSPARÊNCIA</span></h1>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Auditoria Cidadã</p>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Auditoria de Risco Ponderado</p>
                 </div>
             </div>
             <label class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-2 cursor-pointer border border-slate-700 transition">
-                <i data-lucide="folder-input" class="w-3 h-3"></i> CARREGAR CSVs
+                <i data-lucide="folder-input" class="w-3 h-3"></i> DADOS
                 <input type="file" id="fileInput" multiple accept=".csv, .xlsx, .xls, .ods" class="hidden" onchange="iniciarProcessamento(this)">
             </label>
         </div>
 
-        <!-- BARRA DE AÇÕES (BOTÕES SOLICITADOS) -->
+        <!-- BOTÕES DE CONSULTA -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button onclick="auditar('ENTES')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+            <button onclick="mudarAba('ENTES')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:text-white px-2 py-2 rounded-lg flex flex-col items-center gap-1 transition disabled:opacity-30 action-btn" disabled>
                 <i data-lucide="landmark" class="w-4 h-4 text-blue-400"></i>
-                <span class="text-[9px] font-bold uppercase">Entes</span>
+                <span class="text-[9px] font-bold uppercase">Consultar Entes</span>
             </button>
-            <button onclick="auditar('CONTRATOS')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+            <button onclick="mudarAba('OBRAS')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:text-white px-2 py-2 rounded-lg flex flex-col items-center gap-1 transition disabled:opacity-30 action-btn" disabled>
                 <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i>
-                <span class="text-[9px] font-bold uppercase">Contratos</span>
+                <span class="text-[9px] font-bold uppercase">Consultar Contratos</span>
             </button>
-            <button onclick="auditar('EMPRESAS')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+            <button onclick="mudarAba('EMPRESAS')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:text-white px-2 py-2 rounded-lg flex flex-col items-center gap-1 transition disabled:opacity-30 action-btn" disabled>
                 <i data-lucide="building-2" class="w-4 h-4 text-orange-400"></i>
-                <span class="text-[9px] font-bold uppercase">Empresas</span>
+                <span class="text-[9px] font-bold uppercase">Consultar Empresas</span>
             </button>
-            <button onclick="auditar('SOCIOS')" class="action-btn bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition disabled:opacity-30" disabled>
+            <button onclick="mudarAba('SOCIOS')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:text-white px-2 py-2 rounded-lg flex flex-col items-center gap-1 transition disabled:opacity-30 action-btn" disabled>
                 <i data-lucide="users" class="w-4 h-4 text-purple-400"></i>
-                <span class="text-[9px] font-bold uppercase">Sócios</span>
+                <span class="text-[9px] font-bold uppercase">Consultar Sócios</span>
             </button>
         </div>
     </nav>
 
-    <!-- ESTADO VAZIO -->
-    <div id="emptyState" class="p-8 text-center mt-8 animate-fade-in">
-        <div class="bg-slate-800/50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-700 shadow-inner">
-            <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-500"></i>
-        </div>
-        <h2 class="text-xl font-bold text-white mb-2">Importar Base de Dados</h2>
-        <p class="text-slate-400 text-xs max-w-xs mx-auto mb-8 leading-relaxed">
-            Selecione as planilhas do <strong>Antonieta de Barros</strong> (Informações Gerais, Pagamentos, Contratos) para iniciar a Malha Fina automática.
-        </p>
-    </div>
-
-    <!-- LOADING SCREEN -->
+    <!-- LOADING & EMPTY STATES -->
     <div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-900/95 z-[60] flex-col items-center justify-center text-center px-6 backdrop-blur-sm">
         <div class="loader w-12 h-12 mb-4 border-4"></div>
-        <h3 class="text-white font-bold text-lg mb-1" id="loadingTitle">Processando</h3>
-        <p class="text-slate-400 text-sm mb-4" id="loadingText">Aguarde...</p>
+        <h3 class="text-white font-bold text-lg mb-1">Analisando Dados</h3>
+        <p class="text-slate-400 text-sm mb-4">Aplicando Matriz de Risco (6 Colunas)...</p>
         <div class="w-full max-w-xs bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div id="progressBar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
         </div>
     </div>
 
-    <!-- ÁREA DE CONTEÚDO -->
+    <div id="emptyState" class="p-8 text-center mt-10 animate-fade-in">
+        <div class="bg-slate-800/50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-700 shadow-inner">
+            <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-500"></i>
+        </div>
+        <h2 class="text-xl font-bold text-white mb-2">Aguardando Importação</h2>
+        <p class="text-slate-400 text-xs max-w-xs mx-auto leading-relaxed">
+            Carregue as planilhas do <strong>FNDE / Antonieta</strong>. O sistema calculará os rankings automaticamente.
+        </p>
+    </div>
+
+    <!-- MAIN CONTENT -->
     <div id="mainContent" class="hidden px-4 mt-6">
         
-        <!-- CABEÇALHO DA VISÃO -->
+        <!-- HEADER DA VISÃO ATUAL -->
         <div class="flex justify-between items-end mb-4 border-b border-slate-700 pb-2">
             <div>
-                <h2 class="text-xl font-black text-white uppercase tracking-tight" id="viewTitle">Visão Geral</h2>
-                <p class="text-[10px] text-slate-400" id="viewSubtitle">Resultados da auditoria automática</p>
+                <h2 class="text-xl font-black text-white uppercase tracking-tight" id="viewTitle">Ranking Geral</h2>
+                <p class="text-[10px] text-slate-400" id="viewSubtitle">Ordenado por Pontuação de Risco</p>
             </div>
             <div class="text-right">
-                <div class="text-2xl font-black text-orange-500" id="viewRiskCount">0</div>
-                <div class="text-[9px] font-bold text-slate-500 uppercase">Irregularidades</div>
+                <div class="text-2xl font-black text-orange-500" id="viewTotalScore">0</div>
+                <div class="text-[9px] font-bold text-slate-500 uppercase">Pontos Totais</div>
             </div>
         </div>
 
-        <!-- LISTA DE RESULTADOS -->
-        <div id="resultsList" class="space-y-3 pb-8">
-            <!-- Inserido via JS -->
-        </div>
+        <!-- BOTÃO API (Contextual) -->
+        <button id="btnEnrich" onclick="enriquecerDados()" class="hidden w-full mb-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition">
+            <i data-lucide="globe" class="w-3 h-3"></i> BUSCAR DADOS REAIS (RECEITA FEDERAL)
+        </button>
 
-        <!-- PAGINAÇÃO -->
-        <button id="btnLoadMore" onclick="carregarMais()" class="hidden w-full py-3 bg-slate-800 text-slate-400 text-xs font-bold rounded-xl hover:bg-slate-700 transition">
+        <!-- LISTA DE RESULTADOS -->
+        <div id="resultsList" class="space-y-3 pb-8"></div>
+
+        <button id="btnLoadMore" onclick="renderizarMais()" class="hidden w-full py-3 bg-slate-800 text-slate-400 text-xs font-bold rounded-xl hover:bg-slate-700 transition">
             CARREGAR MAIS
         </button>
     </div>
 
-    <!-- JAVASCRIPT ENGINE -->
     <script>
         lucide.createIcons();
 
-        // --- ESTADO ---
+        // --- ESTADO GLOBAL ---
         let DB = { obras: [], empresas: {}, entes: {} };
-        let VIEW = { mode: 'DASHBOARD', page: 0, pageSize: 50, currentList: [] };
+        let VIEW = { mode: 'ENTES', page: 0, pageSize: 50, list: [] };
 
         // ============================================================
-        // 1. LEITURA HÍBRIDA (CSV + EXCEL)
+        // 1. LEITURA DE ARQUIVOS
         // ============================================================
         async function iniciarProcessamento(input) {
             const files = Array.from(input.files);
             if (!files.length) return;
 
-            toggleLoader(true, "Lendo arquivos...");
-            let rawData = { geral: [], contrato: [], pagamentos: [], termos: [], historico: [] };
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('loadingOverlay').classList.add('flex');
+            
+            let raw = { geral: [], contrato: [], pagamentos: [], termos: [] };
             let processed = 0;
-
-            const updateProg = () => {
-                processed++;
-                document.getElementById('progressBar').style.width = `${(processed / files.length) * 100}%`;
-            };
 
             const promises = files.map(file => new Promise(resolve => {
                 const ext = file.name.split('.').pop().toLowerCase();
-                
                 if (ext === 'csv') {
                     Papa.parse(file, {
                         header: true, skipEmptyLines: true, worker: true, encoding: "ISO-8859-1",
-                        complete: (res) => { categorizar(res.data, file.name, rawData); updateProg(); resolve(); },
-                        error: () => { updateProg(); resolve(); }
+                        complete: (res) => { categorizar(res.data, file.name, raw); processed++; updateProgress(processed, files.length); resolve(); }
                     });
                 } else {
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        try {
-                            const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-                            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-                            categorizar(json, file.name, rawData);
-                        } catch(e) {}
-                        updateProg(); resolve();
+                        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+                        categorizar(json, file.name, raw);
+                        processed++; updateProgress(processed, files.length); resolve();
                     };
                     reader.readAsArrayBuffer(file);
                 }
             }));
 
             await Promise.all(promises);
-            document.getElementById('loadingText').innerText = "Aplicando Malha Fina (18 Regras)...";
-            setTimeout(() => processarMalhaFina(rawData), 200);
+            setTimeout(() => processarMatrizRisco(raw), 300);
+        }
+
+        function updateProgress(curr, total) {
+            document.getElementById('progressBar').style.width = `${(curr/total)*100}%`;
         }
 
         function categorizar(json, fname, store) {
+            if (!json || !json.length) return;
             fname = fname.toLowerCase();
-            const keys = json[0] ? Object.keys(json[0]).map(k => k.toLowerCase()) : [];
+            const keys = Object.keys(json[0]).map(k => k.toLowerCase());
             
             if (fname.includes("geral") || keys.includes("situação da obra")) store.geral.push(...json);
             else if (fname.includes("contrata")) store.contrato.push(...json);
             else if (fname.includes("pagamento") || keys.includes("valor da nota fiscal (r$)")) store.pagamentos.push(...json);
             else if (fname.includes("termos") || keys.includes("número do termo")) store.termos.push(...json);
-            else if (fname.includes("histórico")) store.historico.push(...json);
         }
 
         // ============================================================
-        // 2. MOTOR DE MALHA FINA (18 REGRAS)
+        // 2. MATRIZ DE RISCO (6 COLUNAS)
         // ============================================================
-        function processarMalhaFina(raw) {
+        function processarMatrizRisco(raw) {
             DB = { obras: [], empresas: {}, entes: {} };
             const mapObras = {};
-
+            
             // Indexar Financeiro
             const pagamentos = {};
             raw.pagamentos.forEach(row => {
                 const id = row["ID da obra"] || row["ID"];
-                const val = parseMoney(row["Valor da nota fiscal (R$)"] || row["Valor"]);
+                const val = parseMoney(row["Valor da nota fiscal (R$)"] || row["Valor"] || row["Valor do pagamento"]);
                 if(id) pagamentos[id] = (pagamentos[id] || 0) + val;
             });
 
-            // Base Principal
+            // Base
             const base = raw.geral.length ? raw.geral : raw.contrato;
             
             base.forEach(row => {
                 const id = row["ID da obra"] || row["ID"];
                 if(!id) return;
-
-                const obra = {
+                
+                mapObras[id] = {
                     id: id,
-                    nome: row["Nome da obra"] || "Obra Sem Nome",
-                    municipio: row["Município"] || "Desconhecido",
+                    nome: row["Nome da obra"] || row["Objeto"] || "Obra S/ Nome",
+                    municipio: row["Município"] || "N/A",
                     uf: row["UF"] || "",
                     ente: row["Município"] ? `Pref. ${row["Município"]}` : "Governo Estadual",
                     status: row["Situação da obra"] || "N/A",
@@ -225,13 +220,12 @@
                     data_termo: parseDate(row["Data da assinatura do termo"]),
                     data_inicio: null,
                     data_fim: null,
-                    suspeitas: [],
-                    score: 0
+                    score: 0,
+                    flags: []
                 };
-                mapObras[id] = obra;
             });
 
-            // Enriquecer e Auditar
+            // Enriquecer
             raw.contrato.forEach(row => {
                 const id = row["ID da obra"];
                 if(mapObras[id]) {
@@ -239,7 +233,6 @@
                     mapObras[id].data_inicio = parseDate(row["Data de início da execução"]);
                     mapObras[id].data_fim = parseDate(row["Data de término do contrato"]);
                     
-                    // Extrair Empresa
                     const empStr = row["Empresa contratada"];
                     if(empStr) {
                         const m = empStr.match(/\((\d+)\)\s*(.*)/);
@@ -249,259 +242,237 @@
                 }
             });
 
-            // Executar Regras
+            // APLICAR REGRAS (PESOS SOLICITADOS)
             Object.values(mapObras).forEach(obra => {
-                // Cálculo Financeiro
                 if(obra.valor > 0) obra.financeiro = (pagamentos[obra.id] || 0) / obra.valor * 100;
+
+                const hoje = new Date();
+                const diasDecorridos = obra.data_inicio ? diffDays(obra.data_inicio, hoje) : 0;
                 
-                aplicarRegras(obra);
-                
-                // Popula DB
+                // COLUNA 1 (Peso 5): Histórico/Transparência (Aplicado ao Ente, aqui refletido na obra se status for 'Cancelado')
+                if(obra.status === 'Cancelado') flag(obra, 5, 'Histórico Negativo (Obra Cancelada)', 5);
+
+                // COLUNA 2 (Peso 10): Adesão/Tramitação FNDE
+                if(['Indeferido', 'Inadimplente'].includes(obra.status)) flag(obra, 10, `Status FNDE: ${obra.status}`, 10);
+                if(obra.data_termo && !obra.data_inicio && diffDays(obra.data_termo, hoje) > 180) flag(obra, 10, 'Sem manifestação de interesse ágil', 10);
+
+                // COLUNA 3 (Peso 15): Licitação/Prazos
+                if(obra.data_termo && !obra.data_inicio && diffDays(obra.data_termo, hoje) > 365) flag(obra, 15, 'Sem OS em 12 meses do Termo', 15);
+
+                // COLUNA 4 (Peso 20): Execução (Paralisia/Financeiro)
+                if((diasDecorridos > 120 && obra.fisico < 5) || obra.status.includes("Parali")) flag(obra, 20, 'Paralisia Detectada', 20);
+                if((obra.financeiro - obra.fisico) > 10) flag(obra, 20, `Sobrefaturamento (>10%)`, 20);
+                if(obra.data_fim && hoje > obra.data_fim && obra.fisico < 99) flag(obra, 20, 'Vigência Expirada sem Conclusão', 20);
+
+                // COLUNA 5 (Peso 10): Técnico (Simulado)
+                if(obra.fisico > 0 && obra.fisico < 100 && diasDecorridos > 720) flag(obra, 10, 'Lentidão Técnica Excessiva', 10);
+
+                // COLUNA 6 (Peso 25): Societário
+                if(obra.empresa.includes("EIRELI") && obra.valor > 1500000) flag(obra, 25, 'Empresa Individual em Grande Contrato', 25);
+
+                // Popular DBs
                 DB.obras.push(obra);
                 
                 // Agrega Ente
-                if(!DB.entes[obra.municipio]) DB.entes[obra.municipio] = { nome: obra.municipio, uf: obra.uf, obras: 0, riscos: 0, valor: 0, lista_suspeitas: new Set() };
+                if(!DB.entes[obra.municipio]) DB.entes[obra.municipio] = { nome: obra.municipio, uf: obra.uf, obras: 0, risco: 0, valor: 0, flags: new Set() };
                 DB.entes[obra.municipio].obras++;
+                DB.entes[obra.municipio].risco += obra.score;
                 DB.entes[obra.municipio].valor += obra.valor;
-                DB.entes[obra.municipio].riscos += obra.score;
-                obra.suspeitas.forEach(s => DB.entes[obra.municipio].lista_suspeitas.add(s));
+                obra.flags.forEach(f => DB.entes[obra.municipio].flags.add(f.msg));
 
                 // Agrega Empresa
                 if(obra.cnpj) {
-                    if(!DB.empresas[obra.cnpj]) DB.empresas[obra.cnpj] = { cnpj: obra.cnpj, nome: obra.empresa, obras: 0, riscos: 0, valor: 0, socios: [], status_api: 'Pendente' };
+                    if(!DB.empresas[obra.cnpj]) DB.empresas[obra.cnpj] = { cnpj: obra.cnpj, nome: obra.empresa, obras: 0, risco: 0, valor: 0, socios: [], api_status: 'Pendente' };
                     DB.empresas[obra.cnpj].obras++;
+                    DB.empresas[obra.cnpj].risco += obra.score;
                     DB.empresas[obra.cnpj].valor += obra.valor;
-                    DB.empresas[obra.cnpj].riscos += obra.score;
                 }
             });
 
             DB.obras.sort((a,b) => b.score - a.score);
             
-            // Habilitar UI
+            // Finalização
             document.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
-            toggleLoader(false);
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('loadingOverlay').classList.remove('flex');
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('mainContent').classList.remove('hidden');
-            auditar('ENTES'); // Tela inicial
+            
+            mudarAba('ENTES'); // Default View
         }
 
-        function aplicarRegras(obra) {
-            const hoje = new Date();
-            const diasDecorridos = obra.data_inicio ? diffDays(obra.data_inicio, hoje) : 0;
-            
-            // 1. Paralisia (<5% em 120 dias ou <15% em 1 ano)
-            if (diasDecorridos > 120 && obra.fisico < 5) {
-                flag(obra, 20, "Paralisia Inicial (<5% em 120 dias)");
-            }
-            if (diasDecorridos > 365 && obra.fisico < 15) {
-                flag(obra, 20, "Lentidão Crítica (<15% em 1 ano)");
-            }
-
-            // 2. Descompasso Financeiro
-            if ((obra.financeiro - obra.fisico) > 10) {
-                flag(obra, 20, `Sobrefaturamento (>10%): Pago ${obra.financeiro.toFixed(0)}% vs Feito ${obra.fisico.toFixed(0)}%`);
-            }
-            
-            // 3. Prazos
-            if (obra.data_fim && hoje > obra.data_fim && obra.fisico < 98) {
-                flag(obra, 15, "Vigência Expirada sem Conclusão");
-            }
-
-            // 4. Falta de OS (12 meses do Termo)
-            if (obra.data_termo && !obra.data_inicio) {
-                if (diffDays(obra.data_termo, hoje) > 365) {
-                    flag(obra, 15, "Sem Ordem de Serviço há >12 meses");
-                }
-            }
-
-            // 5. Situação FNDE
-            if (['Indeferido', 'Cancelado', 'Inadimplente'].includes(obra.status)) {
-                flag(obra, 10, `Situação FNDE: ${obra.status}`);
-            }
-
-            // 6. Risco Societário (Heurística Local)
-            if (obra.empresa.includes("EIRELI") && obra.valor > 2000000) {
-                flag(obra, 25, "Risco: Empresa EIRELI em contrato vultuoso");
-            }
-        }
-
-        function flag(obra, pts, msg) {
+        function flag(obra, pts, msg, cat) {
             obra.score += pts;
-            obra.suspeitas.push(msg);
+            obra.flags.push({ msg, cat });
         }
 
         // ============================================================
-        // 3. AÇÕES DOS BOTÕES (AUDITORIA)
+        // 3. NAVEGAÇÃO E CONSULTA
         // ============================================================
-        
-        function auditar(tipo) {
-            VIEW.mode = tipo;
+        function mudarAba(aba) {
+            VIEW.mode = aba;
             VIEW.page = 0;
             
-            document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
-            event.currentTarget?.classList.add('bg-blue-600', 'text-white'); // Highlight ativo
+            // UI Toggle
+            document.querySelectorAll('.action-btn').forEach(b => {
+                b.classList.remove('bg-blue-600', 'text-white', 'border-blue-500');
+                b.classList.add('text-slate-300', 'border-slate-700');
+            });
+            const btn = Array.from(document.querySelectorAll('.action-btn')).find(b => b.getAttribute('onclick').includes(aba));
+            if(btn) btn.classList.add('bg-blue-600', 'text-white', 'border-blue-500');
 
-            if (tipo === 'ENTES') {
-                document.getElementById('viewTitle').innerText = "AUDITORIA DE ENTES";
-                document.getElementById('viewSubtitle').innerText = "Rankings de transparência e riscos acumulados por gestão.";
-                VIEW.currentList = Object.values(DB.entes).sort((a,b) => b.riscos - a.riscos);
+            // Preparar Lista
+            if (aba === 'ENTES') {
+                document.getElementById('viewTitle').innerText = "Ranking de Entes";
+                document.getElementById('viewSubtitle').innerText = "Classificado por Risco Acumulado";
+                document.getElementById('btnEnrich').classList.add('hidden');
+                VIEW.list = Object.values(DB.entes).sort((a,b) => b.risco - a.risco);
             } 
-            else if (tipo === 'CONTRATOS') {
-                document.getElementById('viewTitle').innerText = "AUDITORIA DE CONTRATOS (PNCP)";
-                document.getElementById('viewSubtitle').innerText = "Monitoramento de vigência, execução e irregularidades contratuais.";
-                VIEW.currentList = DB.obras;
+            else if (aba === 'OBRAS') { // Contratos
+                document.getElementById('viewTitle').innerText = "Ranking de Obras/Contratos";
+                document.getElementById('viewSubtitle').innerText = "Classificado por Pontuação de Irregularidade";
+                document.getElementById('btnEnrich').classList.add('hidden');
+                VIEW.list = DB.obras;
             } 
-            else if (tipo === 'EMPRESAS') {
-                document.getElementById('viewTitle').innerText = "AUDITORIA DE EMPRESAS";
-                document.getElementById('viewSubtitle').innerText = "Verificação de capital social, débitos e capacidade operacional.";
-                VIEW.currentList = Object.values(DB.empresas).sort((a,b) => b.riscos - a.riscos);
+            else if (aba === 'EMPRESAS') {
+                document.getElementById('viewTitle').innerText = "Ranking de Empresas";
+                document.getElementById('viewSubtitle').innerText = "Classificado por Risco em Contratos";
+                document.getElementById('btnEnrich').classList.remove('hidden');
+                VIEW.list = Object.values(DB.empresas).sort((a,b) => b.risco - a.risco);
+            } 
+            else if (aba === 'SOCIOS') {
+                document.getElementById('viewTitle').innerText = "Ranking de Sócios (QSA)";
+                document.getElementById('viewSubtitle').innerText = "Requer consulta de API para dados completos";
+                document.getElementById('btnEnrich').classList.remove('hidden');
                 
-                // Auto-trigger API se houver poucas empresas para não cansar o usuário
-                if(VIEW.currentList.length < 50 && VIEW.currentList[0].status_api === 'Pendente') consultarAPIEmMassa();
-            } 
-            else if (tipo === 'SOCIOS') {
-                document.getElementById('viewTitle').innerText = "AUDITORIA DE SÓCIOS (QSA)";
-                document.getElementById('viewSubtitle').innerText = "Varredura de laranjas, idade de risco e vínculos políticos.";
-                // Precisa ter rodado API de empresas primeiro
-                const sociosMap = {};
-                Object.values(DB.empresas).forEach(e => {
-                    e.socios.forEach(s => {
-                        if(!sociosMap[s.nome]) sociosMap[s.nome] = { nome: s.nome, empresas: new Set(), riscos: [] };
-                        sociosMap[s.nome].empresas.add(e.nome);
-                        // Regra idade (Simulada pois API as vezes falha idade)
-                        if(s.faixa_etaria === 'Entre 16 a 20 anos' || s.faixa_etaria === 'Acima de 70 anos') sociosMap[s.nome].riscos.push("Idade de Risco");
+                const mapSocios = {};
+                Object.values(DB.empresas).forEach(emp => {
+                    emp.socios.forEach(s => {
+                        if(!mapSocios[s.nome]) mapSocios[s.nome] = { nome: s.nome, empresas: new Set(), riscos: 0 };
+                        mapSocios[s.nome].empresas.add(emp.nome);
+                        mapSocios[s.nome].riscos += (emp.risco / emp.obras); // Risco médio herdado
                     });
                 });
-                VIEW.currentList = Object.values(sociosMap).sort((a,b) => b.empresas.size - a.empresas.size);
+                VIEW.list = Object.values(mapSocios).sort((a,b) => b.empresas.size - a.empresas.size);
                 
-                if(VIEW.currentList.length === 0) {
-                     alert("Para ver sócios, é necessário primeiro clicar em 'AUDITAR EMPRESAS' para buscar dados na Receita Federal.");
-                     auditar('EMPRESAS');
+                if(VIEW.list.length === 0 && Object.keys(DB.empresas).length > 0) {
+                     // Auto-suggest API if empty
+                     document.getElementById('resultsList').innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-slate-400 mb-4">Dados de sócios não carregados.</p>
+                            <button onclick="enriquecerDados()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">BUSCAR DADOS DE SÓCIOS AGORA</button>
+                        </div>
+                     `;
                      return;
                 }
             }
 
-            document.getElementById('viewRiskCount').innerText = VIEW.currentList.reduce((acc, i) => acc + (i.score || i.riscos || 0), 0);
+            const total = VIEW.list.reduce((acc, i) => acc + (i.score || i.risco || 0), 0);
+            document.getElementById('viewTotalScore').innerText = total.toLocaleString();
             renderizar();
         }
 
-        // --- INTEGRAÇÃO API EXTERNA ---
-        async function consultarAPIEmMassa() {
-            if(!confirm("Consultar Receita Federal (BrasilAPI) para verificar QSA e Capital Social?")) return;
+        // ============================================================
+        // 4. API (BRASILAPI)
+        // ============================================================
+        async function enriquecerDados() {
+            if(!confirm("Deseja consultar a Receita Federal para enriquecer dados de Empresas e Sócios?")) return;
             
-            toggleLoader(true, "Consultando Receita Federal...");
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('loadingOverlay').classList.add('flex');
+            
             const cnpjs = Object.keys(DB.empresas);
             let done = 0;
 
-            for (const c => cnpjs) {
-                if(done >= cnpjs.length) break;
-                const cnpj = cnpjs[done];
-                
+            for (const cnpj of cnpjs) {
                 try {
                     const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
                     if(res.ok) {
                         const json = await res.json();
                         const emp = DB.empresas[cnpj];
-                        emp.status_api = 'Atualizado';
+                        emp.api_status = 'Atualizado';
                         emp.capital_social = json.capital_social;
                         
-                        // Regra Capital Social vs Valor Contrato
-                        if(emp.valor_total > (json.capital_social * 10)) {
-                            emp.riscos += 30; // Pontuação alta
-                            // Flag em todas as obras dessa empresa
+                        // REGRA COLUNA 6: Capital Social Incompatível
+                        if(emp.valor > (json.capital_social * 10)) {
+                            emp.risco += 25;
+                            // Propagar para obras
                             DB.obras.filter(o => o.cnpj === cnpj).forEach(o => {
-                                o.score += 30;
-                                o.suspeitas.push(`Empresa tem Capital Social incompatível (${formatMoney(json.capital_social)})`);
+                                o.score += 25;
+                                o.flags.push({ msg: `Capital Social Incompatível (${formatMoney(json.capital_social)})`, cat: 25 });
                             });
                         }
 
                         if(json.qsa) {
-                            json.qsa.forEach(s => emp.socios.push({ 
-                                nome: s.nome_socio, 
-                                faixa_etaria: s.faixa_etaria,
-                                qual: s.qualificacao_socio 
-                            }));
+                            json.qsa.forEach(s => emp.socios.push({ nome: s.nome_socio, qual: s.qualificacao_socio }));
                         }
                     }
-                } catch(e) { console.log(e); }
-
+                } catch(e) {}
                 done++;
                 document.getElementById('progressBar').style.width = `${(done/cnpjs.length)*100}%`;
-                await new Promise(r => setTimeout(r, 600)); // Rate limit protection
+                await new Promise(r => setTimeout(r, 600)); // Rate limit
             }
-            toggleLoader(false);
-            auditar(VIEW.mode); // Re-render
+            
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('loadingOverlay').classList.remove('flex');
+            mudarAba(VIEW.mode);
         }
 
         // ============================================================
-        // 4. RENDERIZAÇÃO
+        // 5. RENDERIZAÇÃO
         // ============================================================
         function renderizar(append = false) {
             const container = document.getElementById('resultsList');
             if(!append) container.innerHTML = "";
-
+            
             const start = VIEW.page * VIEW.pageSize;
-            const slice = VIEW.currentList.slice(start, start + VIEW.pageSize);
+            const slice = VIEW.list.slice(start, start + VIEW.pageSize);
 
-            if(slice.length === 0 && !append) {
-                container.innerHTML = `<div class="text-center text-slate-500 py-10">Nenhum registro encontrado.</div>`;
-                document.getElementById('btnLoadMore').classList.add('hidden');
-                return;
-            }
-
-            slice.forEach(item => {
+            slice.forEach((item, idx) => {
                 let html = "";
-                
+                const rank = start + idx + 1;
+
                 if (VIEW.mode === 'ENTES') {
-                    const susps = Array.from(item.lista_suspeitas).slice(0, 3);
                     html = `
-                    <div class="card p-4 rounded-xl">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="text-white font-bold text-sm">${item.nome} <span class="text-slate-500 text-[10px]">${item.uf}</span></h3>
-                            <div class="text-right">
-                                <div class="text-lg font-black text-orange-500">${item.riscos} Pts</div>
+                    <div class="card p-4 rounded-xl flex gap-4">
+                        <div class="text-2xl font-black text-slate-600 w-8">#${rank}</div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-white font-bold text-sm truncate">${item.nome}</h3>
+                            <div class="text-[10px] text-slate-400 mt-1">${item.uf} • ${item.obras} Obras</div>
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                ${Array.from(item.flags).slice(0,3).map(f => `<span class="text-[9px] bg-slate-800 text-slate-300 px-1 rounded border border-slate-700">${f}</span>`).join('')}
                             </div>
                         </div>
-                        <div class="bg-slate-800/50 p-2 rounded text-xs text-slate-300 mb-2 grid grid-cols-2 gap-2">
-                            <div>Obras: <b>${item.obras}</b></div>
-                            <div>Total: <b class="text-emerald-400">${formatMoney(item.valor)}</b></div>
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            ${susps.map(s => `<span class="risk-badge risk-warning">${s}</span>`).join('')}
-                            ${item.lista_suspeitas.size > 3 ? `<span class="text-[9px] text-slate-500">+${item.lista_suspeitas.size - 3} alertas</span>` : ''}
+                        <div class="text-right">
+                            <div class="text-xl font-black text-orange-500">${item.risco}</div>
+                            <div class="text-[8px] uppercase font-bold text-slate-500">Pts Risco</div>
                         </div>
                     </div>`;
                 }
-                else if (VIEW.mode === 'CONTRATOS') {
-                    // Deep Links para PNCP e Transparência
+                else if (VIEW.mode === 'OBRAS') {
+                    // Links PNCP
                     const linkPNCP = `https://pncp.gov.br/app/editais?q=${encodeURIComponent(item.nome)}`;
-                    const linkTransp = `https://portaldatransparencia.gov.br/busca?termo=${encodeURIComponent(item.nome)}`;
                     
                     html = `
-                    <div class="card p-3 rounded-xl border-l-4 ${item.score >= 20 ? 'border-red-500' : 'border-emerald-500'}">
+                    <div class="card p-3 rounded-xl border-l-4 ${item.score >= 50 ? 'border-red-500' : 'border-orange-500'}">
                         <div class="flex justify-between items-start mb-2">
-                            <span class="bg-slate-700 text-white text-[10px] px-1.5 rounded font-mono">${item.id}</span>
+                            <span class="bg-slate-800 text-slate-300 text-[9px] px-1.5 rounded font-mono">${item.id}</span>
                             <span class="text-[10px] text-slate-400 truncate max-w-[120px]">${item.municipio}</span>
                         </div>
                         <h3 class="text-sm font-bold text-white leading-tight mb-2">${item.nome}</h3>
                         
-                        <div class="flex gap-2 mb-3">
-                            <a href="${linkPNCP}" target="_blank" class="flex-1 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 text-[10px] py-1.5 rounded text-center border border-blue-900 transition">
-                                <i data-lucide="search" class="w-3 h-3 inline"></i> Consultar PNCP
-                            </a>
-                            <a href="${linkTransp}" target="_blank" class="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 text-[10px] py-1.5 rounded text-center border border-emerald-900 transition">
-                                <i data-lucide="external-link" class="w-3 h-3 inline"></i> Transparência
-                            </a>
+                        <div class="bg-slate-900/50 p-2 rounded mb-2 text-[10px] grid grid-cols-2 gap-2">
+                            <div>Físico: <b class="text-blue-400">${item.fisico.toFixed(1)}%</b></div>
+                            <div>Financeiro: <b class="${item.financeiro > item.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}">${item.financeiro.toFixed(1)}%</b></div>
                         </div>
 
-                        <div class="bg-slate-900/50 rounded p-2 mb-2 text-[10px]">
-                            <div class="flex justify-between mb-1"><span>Físico:</span> <b class="text-blue-400">${item.fisico.toFixed(1)}%</b></div>
-                            <div class="flex justify-between"><span>Financeiro:</span> <b class="${item.financeiro > item.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}">${item.financeiro.toFixed(1)}%</b></div>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            ${item.flags.map(f => `<span class="risk-tag-${f.cat} text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${f.msg} (+${f.cat})</span>`).join('')}
                         </div>
 
-                        <div class="flex flex-col gap-1">
-                            ${item.suspeitas.map(s => `<span class="risk-badge risk-critical flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> ${s}</span>`).join('')}
-                        </div>
+                        <a href="${linkPNCP}" target="_blank" class="block w-full text-center bg-blue-900/20 hover:bg-blue-900/40 text-blue-300 border border-blue-900/50 text-[10px] py-1.5 rounded font-bold transition">
+                            <i data-lucide="external-link" class="w-3 h-3 inline mr-1"></i> VERIFICAR NO PNCP
+                        </a>
                     </div>`;
                 }
                 else if (VIEW.mode === 'EMPRESAS') {
@@ -509,14 +480,11 @@
                     <div class="card p-4 rounded-xl">
                         <div class="flex justify-between mb-2">
                             <h3 class="text-white font-bold text-sm truncate max-w-[200px]">${item.nome}</h3>
-                            <span class="text-orange-500 font-bold text-xs">${item.riscos} Pts</span>
+                            <span class="text-orange-500 font-bold text-xs">${item.risco} Pts</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 font-mono mb-2">CNPJ: ${item.cnpj} | API: ${item.status_api}</p>
-                        ${item.capital_social ? `<div class="text-[10px] text-slate-300 mb-1">Capital Social: <b>${formatMoney(item.capital_social)}</b></div>` : ''}
-                        <div class="text-xs bg-slate-800 p-2 rounded text-slate-300 flex justify-between">
-                            <span><b>${item.obras}</b> Obras</span>
-                            <span>Total: <b class="text-emerald-400">${formatMoney(item.valor)}</b></span>
-                        </div>
+                        <p class="text-[10px] text-slate-400 font-mono mb-2">CNPJ: ${item.cnpj}</p>
+                        ${item.capital_social ? `<p class="text-[10px] text-emerald-400 mb-2">Capital Social: ${formatMoney(item.capital_social)}</p>` : ''}
+                        <div class="text-[10px] text-slate-400"><b>${item.obras}</b> Contratos | Total: <b>${formatMoney(item.valor)}</b></div>
                     </div>`;
                 }
                 else if (VIEW.mode === 'SOCIOS') {
@@ -525,40 +493,29 @@
                         <div class="bg-slate-700 p-2 rounded-full"><i data-lucide="user" class="w-4 h-4 text-slate-300"></i></div>
                         <div class="flex-1">
                             <h3 class="text-white font-bold text-sm">${item.nome}</h3>
-                            <p class="text-[10px] text-slate-400 truncate w-48">Vinculado a: ${Array.from(item.empresas).join(', ')}</p>
+                            <p class="text-[10px] text-slate-400">Sócio em: ${Array.from(item.empresas).join(', ')}</p>
                         </div>
-                        ${item.riscos.length > 0 ? `<div class="text-[9px] bg-red-900/50 text-red-200 px-2 py-1 rounded">ALERTA</div>` : ''}
                     </div>`;
                 }
 
                 container.insertAdjacentHTML('beforeend', html);
             });
 
-            if (start + VIEW.pageSize < VIEW.currentList.length) document.getElementById('btnLoadMore').classList.remove('hidden');
+            if (start + VIEW.pageSize < VIEW.list.length) document.getElementById('btnLoadMore').classList.remove('hidden');
             else document.getElementById('btnLoadMore').classList.add('hidden');
             
             lucide.createIcons();
         }
 
-        function carregarMais() {
-            VIEW.page++;
-            renderizar(true);
-        }
+        function renderizarMais() { VIEW.page++; renderizar(true); }
 
-        // ============================================================
         // UTILS
-        // ============================================================
-        function toggleLoader(show, msg) {
-            const el = document.getElementById('loadingOverlay');
-            if(show) { el.classList.remove('hidden'); el.classList.add('flex'); document.getElementById('loadingText').innerText = msg; }
-            else { el.classList.add('hidden'); el.classList.remove('flex'); }
-        }
         function parseMoney(v) { if(!v) return 0; if(typeof v === 'number') return v; return parseFloat(v.toString().replace("R$","").trim().replace(/\./g,"").replace(",",".")) || 0; }
         function parseDate(d) { if(!d) return null; if(typeof d === 'number') return new Date(Math.round((d-25569)*86400*1000)); const p = d.split(/[\/\-]/); return p.length===3 ? new Date(p[2],p[1]-1,p[0]) : null; }
         function diffDays(d1, d2) { return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24)); }
         function formatMoney(v) { return (v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }); }
-
     </script>
 </body>
 </html>
+
 
