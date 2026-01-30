@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RevelaGov - Auditoria Universal</title>
+    <title>FTC Transparência - Auditoria Cidadã</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,41 +11,55 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- SheetJS (Lê Excel, XLS, ODS e CSV) -->
+    <!-- SheetJS (Excel/ODS) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #e2e8f0; }
-        .glass { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .glass { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.1); }
         .card { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); }
-        .btn-active { background-color: #ea580c !important; color: white !important; border-color: #ea580c !important; }
+        .btn-active { background-color: #0ea5e9 !important; color: white !important; border-color: #0ea5e9 !important; }
         
-        /* Indicadores de Risco */
-        .badge-critical { background: linear-gradient(135deg, #ef4444, #b91c1c); box-shadow: 0 2px 10px rgba(239, 68, 68, 0.3); }
+        /* Badges de Risco */
+        .badge-critical { background: linear-gradient(135deg, #ef4444, #991b1b); box-shadow: 0 2px 10px rgba(239, 68, 68, 0.3); }
         .badge-medium { background: linear-gradient(135deg, #f97316, #c2410c); }
         .badge-low { background: linear-gradient(135deg, #22c55e, #15803d); }
 
+        /* Abas */
+        .tab-btn.active { border-bottom: 2px solid #0ea5e9; color: #0ea5e9; }
+        
         /* Loader */
-        .loader { border: 3px solid rgba(255,255,255,0.1); border-left-color: #f97316; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        .loader { border: 3px solid rgba(255,255,255,0.1); border-left-color: #0ea5e9; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="pb-20">
 
-    <!-- HEADER FLUTUANTE -->
-    <nav class="glass sticky top-0 z-50 px-4 py-3 shadow-xl flex justify-between items-center">
-        <div class="flex items-center gap-2">
-            <i data-lucide="eye" class="text-orange-500 w-6 h-6"></i>
-            <div>
-                <h1 class="font-black text-white text-lg leading-none tracking-tight">REVELA<span class="text-orange-500">GOV</span></h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Módulo Auditoria</p>
+    <!-- HEADER -->
+    <nav class="glass sticky top-0 z-50 px-4 py-3 shadow-xl">
+        <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center gap-2">
+                <div class="bg-blue-600 p-1.5 rounded-lg">
+                    <i data-lucide="search" class="text-white w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-white text-lg leading-none tracking-tight">FTC <span class="text-blue-500">TRANSPARÊNCIA</span></h1>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Auditoria de Obras & Dados</p>
+                </div>
             </div>
         </div>
-        
-        <label class="bg-blue-600 active:bg-blue-700 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-900/50 transition-transform active:scale-95 cursor-pointer">
-            <i data-lucide="folder-open" class="w-4 h-4"></i> ABRIR ARQUIVOS
-            <input type="file" id="fileInput" multiple accept=".csv, .xlsx, .xls, .ods" class="hidden" onchange="processarArquivos(this)">
-        </label>
+
+        <!-- BOTOES DE AÇÃO -->
+        <div class="flex gap-2">
+            <label class="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition border border-slate-600">
+                <i data-lucide="folder-open" class="w-4 h-4"></i> CARREGAR ARQUIVOS
+                <input type="file" id="fileInput" multiple accept=".csv, .xlsx, .xls, .ods" class="hidden" onchange="processarArquivos(this)">
+            </label>
+            
+            <button onclick="acionarAPIs()" id="btnApi" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition opacity-50 cursor-not-allowed" disabled>
+                <i data-lucide="globe" class="w-4 h-4"></i> CONSULTAR API (CNPJ)
+            </button>
+        </div>
     </nav>
 
     <!-- ÁREA DE MENSAGENS / EMPTY STATE -->
@@ -53,119 +67,93 @@
         <div class="bg-slate-800/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
             <i data-lucide="file-spreadsheet" class="w-10 h-10 text-slate-500"></i>
         </div>
-        <h2 class="text-xl font-bold text-white mb-2">Nenhum dado carregado</h2>
+        <h2 class="text-xl font-bold text-white mb-2">Aguardando Base de Dados</h2>
         <p class="text-slate-400 text-sm max-w-xs mx-auto mb-6">
-            Importe as planilhas do <strong>Antonieta de Barros</strong> (Excel, CSV ou ODS). O sistema cruzará os dados automaticamente.
+            Carregue as planilhas do FNDE/Antonieta ou Portal da Transparência. O sistema cruzará Entes, Obras e Empresas.
         </p>
-        <div class="text-[10px] text-slate-600 uppercase font-bold tracking-widest border-t border-slate-800 pt-4 max-w-xs mx-auto">
-            Formatos Suportados: .XLSX .CSV .ODS
-        </div>
     </div>
 
     <!-- LOADING OVERLAY -->
-    <div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-900/90 z-[60] flex-col items-center justify-center text-center">
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-900/90 z-[60] flex-col items-center justify-center text-center px-6">
         <div class="loader w-12 h-12 mb-4 border-4"></div>
-        <h3 class="text-white font-bold text-lg">Processando Base de Dados</h3>
+        <h3 class="text-white font-bold text-lg mb-1" id="loadingTitle">Processando</h3>
         <p class="text-slate-400 text-sm" id="loadingText">Lendo arquivos...</p>
+        <div id="apiProgress" class="w-full max-w-md bg-slate-700 rounded-full h-2.5 mt-4 hidden">
+            <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+        </div>
     </div>
 
-    <!-- DASHBOARD (Conteúdo Principal) -->
-    <div id="mainContent" class="hidden px-4 mt-6">
+    <!-- DASHBOARD -->
+    <div id="mainContent" class="hidden px-4 mt-4">
         
-        <!-- KPIs -->
+        <!-- ABAS DE RANKING -->
+        <div class="flex overflow-x-auto border-b border-slate-700 mb-4 gap-6 scrollbar-hide">
+            <button onclick="mudarAba('ENTES')" class="tab-btn active pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">ENTES FEDERATIVOS</button>
+            <button onclick="mudarAba('OBRAS')" class="tab-btn pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">OBRAS</button>
+            <button onclick="mudarAba('EMPRESAS')" class="tab-btn pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">EMPRESAS</button>
+            <button onclick="mudarAba('SOCIOS')" class="tab-btn pb-2 text-sm font-bold text-slate-400 whitespace-nowrap">SÓCIOS (QSA)</button>
+        </div>
+
+        <!-- KPIs GERAIS (Aparecem sempre) -->
         <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="card p-4 rounded-xl relative overflow-hidden">
-                <div class="absolute -right-2 -top-2 text-slate-800 opacity-20"><i data-lucide="building-2" class="w-16 h-16"></i></div>
-                <div class="text-slate-400 text-[10px] font-bold uppercase">Obras Mapeadas</div>
-                <div class="text-3xl font-black text-white" id="kpiCount">0</div>
+            <div class="card p-3 rounded-xl border-l-4 border-blue-500">
+                <div class="text-slate-400 text-[10px] font-bold uppercase">Total Mapeado</div>
+                <div class="text-xl font-black text-white" id="kpiTotal">0</div>
             </div>
-            <div class="card p-4 rounded-xl border-l-4 border-red-500 relative overflow-hidden">
-                <div class="absolute -right-2 -top-2 text-red-900 opacity-20"><i data-lucide="alert-triangle" class="w-16 h-16"></i></div>
+            <div class="card p-3 rounded-xl border-l-4 border-red-500">
                 <div class="text-red-400 text-[10px] font-bold uppercase">Risco Crítico</div>
-                <div class="text-3xl font-black text-white" id="kpiRisk">0</div>
-            </div>
-            <div class="card p-3 rounded-xl col-span-2 flex justify-between items-center">
-                <div>
-                    <div class="text-slate-400 text-[10px] font-bold uppercase">Volume de Recursos</div>
-                    <div class="text-lg font-black text-emerald-400" id="kpiMoney">R$ 0,00</div>
-                </div>
-                <i data-lucide="wallet" class="text-emerald-500/50 w-8 h-8"></i>
+                <div class="text-xl font-black text-white" id="kpiRisk">0</div>
             </div>
         </div>
 
-        <!-- BARRA DE FILTROS -->
-        <div class="flex overflow-x-auto gap-2 mb-6 pb-2 scrollbar-hide">
-            <button onclick="aplicarFiltro('TODOS', this)" class="btn-filter btn-active whitespace-nowrap bg-slate-800 text-slate-400 border border-slate-700 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
-                <i data-lucide="list"></i> RANKING GERAL
-            </button>
-            <button onclick="aplicarFiltro('PARALISADA', this)" class="btn-filter whitespace-nowrap bg-slate-800 text-slate-400 border border-slate-700 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
-                <i data-lucide="pause-circle"></i> PARALISADAS
-            </button>
-            <button onclick="aplicarFiltro('FINANCEIRO', this)" class="btn-filter whitespace-nowrap bg-slate-800 text-slate-400 border border-slate-700 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
-                <i data-lucide="dollar-sign"></i> SOBREPREÇO
-            </button>
-            <button onclick="aplicarFiltro('SOCIETARIO', this)" class="btn-filter whitespace-nowrap bg-slate-800 text-slate-400 border border-slate-700 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
-                <i data-lucide="users"></i> EMPRESAS
-            </button>
-        </div>
-
-        <!-- LISTA DE OBRAS -->
+        <!-- LISTA DE RESULTADOS -->
         <div id="listaResultados" class="space-y-4">
-            <!-- Cards injetados via JS -->
+            <!-- Injetado via JS -->
         </div>
 
         <div class="text-center text-slate-600 text-xs mt-8 mb-4">
-            Fim dos resultados
+            Fonte Primária: Arquivos Locais | Fonte Secundária: BrasilAPI/Dados.gov.br
         </div>
     </div>
 
-    <!-- SCRIPTS (LÓGICA) -->
+    <!-- SCRIPTS -->
     <script>
         lucide.createIcons();
 
-        let DATABASE = []; // Banco de dados em memória
-        let FILTERED = []; // Dados filtrados visualmente
+        // Estado Global
+        let DB_OBRAS = [];
+        let DB_EMPRESAS = {}; // Mapa CNPJ -> Dados
+        let DB_SOCIOS = [];   // Lista plana de sócios
+        let VIEW_MODE = 'ENTES';
 
         // ==========================================
-        // 1. LEITURA DE ARQUIVOS (XLSX/CSV)
+        // 1. LEITURA DE ARQUIVOS
         // ==========================================
         async function processarArquivos(input) {
             const files = input.files;
             if (!files.length) return;
 
-            // UI Feedback
-            document.getElementById('statusArea').classList.add('hidden');
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-            document.getElementById('loadingOverlay').classList.add('flex');
+            toggleLoading(true, "Lendo Base de Dados...");
+            
+            let rawData = { geral: [], contrato: [], pagamentos: [], prefeitura: [] };
 
-            let rawData = {
-                geral: [],
-                contrato: [],
-                pagamentos: [],
-                prefeitura: [],
-                repasses: [],
-                historico: []
-            };
-
-            // Processa cada arquivo
             for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                document.getElementById('loadingText').innerText = `Lendo: ${file.name}...`;
-                
                 try {
-                    const data = await lerArquivoExcel(file);
-                    identificarTipoENormalizar(data, file.name, rawData);
-                } catch (e) {
-                    console.error("Erro ao ler " + file.name, e);
-                }
+                    const data = await lerArquivoExcel(files[i]);
+                    categorizarArquivo(data, files[i].name, rawData);
+                } catch (e) { console.error(e); }
             }
 
-            // Cruzamento
-            document.getElementById('loadingText').innerText = "Cruzando informações...";
-            // Pequeno delay para a UI atualizar
             setTimeout(() => {
                 cruzarDados(rawData);
-            }, 100);
+                // Habilita o botão de API se tivermos empresas
+                if (Object.keys(DB_EMPRESAS).length > 0) {
+                    const btn = document.getElementById('btnApi');
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                toggleLoading(false);
+            }, 500);
         }
 
         function lerArquivoExcel(file) {
@@ -174,1278 +162,416 @@
                 reader.onload = (e) => {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    // Pega a primeira aba
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    // Converte para JSON
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-                    resolve(jsonData);
+                    resolve(XLSX.utils.sheet_to_json(firstSheet, { defval: "" }));
                 };
                 reader.onerror = reject;
                 reader.readAsArrayBuffer(file);
             });
         }
 
-        // ==========================================
-        // 2. INTELIGÊNCIA DE DADOS (NORMALIZAÇÃO)
-        // ==========================================
-        function identificarTipoENormalizar(json, filename, store) {
-            if (!json || json.length === 0) return;
-            
+        function categorizarArquivo(json, filename, store) {
+            if (!json || !json.length) return;
             const keys = Object.keys(json[0]).map(k => k.toLowerCase());
             const fname = filename.toLowerCase();
 
-            // Heurística para saber qual arquivo é qual
-            if (fname.includes("geral") || keys.includes("situação da obra") || keys.includes("percentual de execução")) {
-                store.geral = store.geral.concat(json);
-            } else if (fname.includes("contrata") || keys.includes("valor do contrato")) {
-                store.contrato = store.contrato.concat(json);
-            } else if (fname.includes("pagamento") || keys.includes("valor da nota fiscal (r$)")) {
-                store.pagamentos = store.pagamentos.concat(json);
-            } else if (fname.includes("repasse") || keys.includes("valor repassado")) {
-                store.repasses = store.repasses.concat(json);
-            } else if (fname.includes("prefeitura") || keys.includes("razão social")) {
-                store.prefeitura = store.prefeitura.concat(json);
-            } else if (fname.includes("histórico") || keys.includes("situação atual")) {
-                store.historico = store.historico.concat(json);
-            }
+            if (fname.includes("geral") || keys.includes("situação da obra")) store.geral = store.geral.concat(json);
+            else if (fname.includes("contrata") || keys.includes("valor do contrato")) store.contrato = store.contrato.concat(json);
+            else if (fname.includes("pagamento") || keys.includes("valor da nota fiscal (r$)")) store.pagamentos = store.pagamentos.concat(json);
+            else if (fname.includes("prefeitura")) store.prefeitura = store.prefeitura.concat(json);
         }
 
         // ==========================================
-        // 3. CRUZAMENTO E CÁLCULO DE RISCO
+        // 2. PROCESSAMENTO E CRUZAMENTO
         // ==========================================
         function cruzarDados(raw) {
-            const obrasMap = {};
-
-            // 3.1. Base Primária (Geral ou Contratos)
-            const baseList = raw.geral.length > 0 ? raw.geral : raw.contrato;
+            const mapa = {};
             
-            if (baseList.length === 0) {
-                alert("Não foi possível identificar uma lista base de obras. Certifique-se de carregar o arquivo 'Informações Gerais' ou 'Contratação'.");
-                document.getElementById('loadingOverlay').classList.add('hidden');
-                document.getElementById('statusArea').classList.remove('hidden');
-                return;
-            }
-
-            baseList.forEach(row => {
-                // Tenta achar ID da Obra (várias possibilidades de header)
+            // Base: Geral ou Contrato
+            const base = raw.geral.length ? raw.geral : raw.contrato;
+            
+            base.forEach(row => {
                 const id = row["ID da obra"] || row["ID"];
                 if (!id) return;
-
-                obrasMap[id] = {
+                
+                mapa[id] = {
                     id: id,
                     nome: row["Nome da obra"] || row["Objeto"] || "Obra sem nome",
                     municipio: row["Município"] || "N/A",
                     uf: row["UF"] || "",
-                    status: row["Situação da obra"] || "Desconhecido",
-                    fisico: parseBRL(row["Percentual de execução"] || row["% Medição física acumulada"]),
+                    ente: row["Esfera"] === "Estadual" ? "Governo Estadual" : (row["Município"] ? `Pref. ${row["Município"]}` : "Ente Desconhecido"),
+                    status: row["Situação da obra"] || "N/A",
+                    fisico: parseMoney(row["Percentual de execução"] || row["% Medição física acumulada"]),
                     financeiro: 0,
                     valor: 0,
                     empresa: "Não Identificada",
+                    cnpj_empresa: null,
                     inicio: null,
                     fim: null,
-                    flags: [],
-                    score: 0
+                    score: 0,
+                    flags: []
                 };
             });
 
-            // 3.2. Enriquecimento (Contratos)
+            // Enriquecer com Contratos (Para pegar Empresa)
             raw.contrato.forEach(row => {
                 const id = row["ID da obra"];
-                if (obrasMap[id]) {
-                    obrasMap[id].valor = parseBRL(row["Valor do contrato"]);
-                    obrasMap[id].empresa = row["Empresa contratada"] || obrasMap[id].empresa;
+                if (mapa[id]) {
+                    mapa[id].valor = parseMoney(row["Valor do contrato"]);
                     
-                    if(row["Data de início da execução"]) obrasMap[id].inicio = parseData(row["Data de início da execução"]);
-                    if(row["Data de término do contrato"]) obrasMap[id].fim = parseData(row["Data de término do contrato"]);
+                    // Extração de CNPJ e Nome da string "CNPJ - NOME"
+                    const empStr = row["Empresa contratada"];
+                    if (empStr) {
+                        const match = empStr.match(/\((\d+)\)\s*(.*)/); // Tenta achar (CNPJ) NOME
+                        if (match) {
+                            mapa[id].cnpj_empresa = match[1]; // Apenas números
+                            mapa[id].empresa = match[2];
+                        } else {
+                            mapa[id].empresa = empStr;
+                        }
+                    }
+                    
+                    if(row["Data de início da execução"]) mapa[id].inicio = parseData(row["Data de início da execução"]);
+                    if(row["Data de término do contrato"]) mapa[id].fim = parseData(row["Data de término do contrato"]);
                 }
             });
 
-            // 3.3. Cálculo Financeiro (Pagamentos)
+            // Enriquecer com Pagamentos
             const pagamentosMap = {};
             raw.pagamentos.forEach(row => {
                 const id = row["ID da obra"];
-                const val = parseBRL(row["Valor da nota fiscal (R$)"] || row["Valor do pagamento"] || row["Valor"]);
+                const val = parseMoney(row["Valor da nota fiscal (R$)"] || row["Valor"]);
                 if(id) pagamentosMap[id] = (pagamentosMap[id] || 0) + val;
             });
-            
-            // Se não tiver tabela Pagamentos, tenta usar Repasses como proxy financeiro
-            if (raw.pagamentos.length === 0 && raw.repasses.length > 0) {
-                 raw.repasses.forEach(row => {
-                    const id = row["ID da obra"];
-                    const val = parseBRL(row["Valor repassado"] || row["Valor"]);
-                    if(id) pagamentosMap[id] = (pagamentosMap[id] || 0) + val;
-                });
-            }
 
-            // Aplica financeiro
-            Object.keys(obrasMap).forEach(id => {
-                const obra = obrasMap[id];
-                const pago = pagamentosMap[id] || 0;
-                if (obra.valor > 0) {
-                    obra.financeiro = (pago / obra.valor) * 100;
+            // Finalizar Obras e Popular Empresas
+            DB_OBRAS = Object.values(mapa).map(obra => {
+                // Cálculo Financeiro
+                const pago = pagamentosMap[obra.id] || 0;
+                if (obra.valor > 0) obra.financeiro = (pago / obra.valor) * 100;
+                
+                // Cálculo Risco
+                const risco = calcularRisco(obra);
+                obra.score = risco.score;
+                obra.flags = risco.flags;
+
+                // Popular DB de Empresas
+                if (obra.cnpj_empresa) {
+                    if (!DB_EMPRESAS[obra.cnpj_empresa]) {
+                        DB_EMPRESAS[obra.cnpj_empresa] = {
+                            cnpj: obra.cnpj_empresa,
+                            nome: obra.empresa,
+                            total_obras: 0,
+                            valor_total: 0,
+                            risco_acumulado: 0,
+                            socios: [] // Será preenchido pela API
+                        };
+                    }
+                    DB_EMPRESAS[obra.cnpj_empresa].total_obras++;
+                    DB_EMPRESAS[obra.cnpj_empresa].valor_total += obra.valor;
+                    DB_EMPRESAS[obra.cnpj_empresa].risco_acumulado += obra.score;
                 }
+
+                return obra;
             });
 
-            // 3.4. Motor de Risco (Antonieta)
-            DATABASE = Object.values(obrasMap).map(calcularRisco);
-            DATABASE.sort((a, b) => b.score - a.score); // Ordena por Risco
-            
-            FILTERED = [...DATABASE];
-            renderizarDashboard();
+            DB_OBRAS.sort((a, b) => b.score - a.score);
+            renderizar();
         }
 
         function calcularRisco(obra) {
             let score = 0;
             let flags = [];
             
-            // Helper Dates
             const hoje = new Date();
             const diasObra = obra.inicio ? Math.floor((hoje - obra.inicio) / (1000 * 60 * 60 * 24)) : 0;
-            const vencida = obra.fim ? (hoje > obra.fim) : false;
-
-            // [20 pts] Paralisia
-            // Status explícito ou (Muitos dias e pouco avanço)
-            if (obra.status.toLowerCase().includes("parali") || (diasObra > 120 && obra.fisico < 5)) {
+            
+            // 1. Paralisia
+            if (obra.status.toLowerCase().includes("parali") || (diasObra > 180 && obra.fisico < 5)) {
                 score += 20;
-                flags.push({ tipo: 'CRITICO', msg: 'Paralisia: Sem avanço significativo' });
+                flags.push("Paralisia Crítica");
             }
-
-            // [20 pts] Desequilíbrio Financeiro (Sobrefaturamento)
-            // Se pagou 10% a mais do que executou
-            if ((obra.financeiro - obra.fisico) > 10) {
+            // 2. Sobrefaturamento
+            if ((obra.financeiro - obra.fisico) > 15) {
                 score += 20;
-                flags.push({ tipo: 'FINANCEIRO', msg: `Pago ${obra.financeiro.toFixed(0)}% vs Feito ${obra.fisico.toFixed(0)}%` });
+                flags.push("Sobrefaturamento (>15%)");
             }
-
-            // [20 pts] Prazo Expirado
-            if (vencida && obra.fisico < 95 && obra.status.toLowerCase() !== 'concluída') {
-                score += 20;
-                flags.push({ tipo: 'PRAZO', msg: 'Vigência expirada sem conclusão' });
-            }
-
-            // [25 pts] Risco Societário (Heurística)
-            // EIRELI ou ME em contrato > 1 Milhão
-            const nomeEmpresa = obra.empresa.toUpperCase();
-            if ((nomeEmpresa.includes("EIRELI") || nomeEmpresa.includes(" ME ")) && obra.valor > 1000000) {
+            // 3. EIRELI/Risco (Heurística de nome)
+            if (obra.empresa && (obra.empresa.includes("EIRELI") || obra.empresa.includes("ME")) && obra.valor > 1000000) {
                 score += 25;
-                flags.push({ tipo: 'SOCIETARIO', msg: 'Empresa individual em contrato milionário' });
+                flags.push("Empresa Pequena / Contrato Grande");
             }
 
-            obra.score = score;
-            obra.flags = flags;
-            return obra;
+            return { score, flags };
         }
 
         // ==========================================
-        // 4. HELPERS DE PARSE
+        // 3. INTEGRAÇÃO COM API REAL (DADOS.GOV / BRASILAPI)
         // ==========================================
-        function parseBRL(val) {
+        async function acionarAPIs() {
+            const cnpjs = Object.keys(DB_EMPRESAS);
+            if (cnpjs.length === 0) return alert("Nenhuma empresa identificada para consulta.");
+
+            if (!confirm(`Deseja consultar dados reais na BrasilAPI para ${cnpjs.length} empresas? Isso pode levar algum tempo.`)) return;
+
+            toggleLoading(true, "Consultando APIs Públicas...");
+            document.getElementById('apiProgress').classList.remove('hidden');
+            
+            let processados = 0;
+            DB_SOCIOS = []; // Limpa sócios anteriores
+
+            // Processamento em lote com delay para não bloquear API
+            for (const cnpj of cnpjs) {
+                try {
+                    document.getElementById('loadingText').innerText = `Consultando CNPJ: ${cnpj}...`;
+                    
+                    // FETCH REAL NA API
+                    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+                    
+                    if (response.ok) {
+                        const dados = await response.json();
+                        
+                        // Atualiza Empresa
+                        if (DB_EMPRESAS[cnpj]) {
+                            DB_EMPRESAS[cnpj].nome_oficial = dados.razao_social;
+                            DB_EMPRESAS[cnpj].capital_social = dados.capital_social;
+                            
+                            // Processa Sócios (QSA)
+                            if (dados.qsa) {
+                                dados.qsa.forEach(socio => {
+                                    DB_EMPRESAS[cnpj].socios.push(socio);
+                                    DB_SOCIOS.push({
+                                        nome: socio.nome_socio,
+                                        qualificacao: socio.qualificacao_socio,
+                                        empresa_vinculada: dados.razao_social,
+                                        cnpj_vinculado: cnpj,
+                                        faixa_etaria: socio.faixa_etaria // Às vezes disponível
+                                    });
+                                });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`Falha API CNPJ ${cnpj}:`, err);
+                }
+
+                processados++;
+                // Atualiza barra de progresso
+                document.querySelector('#apiProgress div').style.width = `${(processados / cnpjs.length) * 100}%`;
+                
+                // Pequeno delay para evitar Rate Limit (429)
+                await new Promise(r => setTimeout(r, 600));
+            }
+
+            alert("Consulta finalizada! Aba 'Sócios' e 'Empresas' atualizada com dados oficiais.");
+            toggleLoading(false);
+            renderizar();
+        }
+
+        // ==========================================
+        // 4. RENDERIZAÇÃO E RANKINGS
+        // ==========================================
+        function mudarAba(aba) {
+            VIEW_MODE = aba;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active', 'text-blue-500'));
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                if(b.textContent.includes(aba.substring(0,4))) {
+                    b.classList.add('active');
+                    b.classList.remove('text-slate-400');
+                    b.classList.add('text-blue-500');
+                }
+            });
+            renderizar();
+        }
+
+        function renderizar() {
+            document.getElementById('statusArea').classList.add('hidden');
+            document.getElementById('mainContent').classList.remove('hidden');
+            const container = document.getElementById('listaResultados');
+            container.innerHTML = "";
+
+            // Atualiza KPIs Globais
+            document.getElementById('kpiTotal').innerText = DB_OBRAS.length;
+            document.getElementById('kpiRisk').innerText = DB_OBRAS.filter(o => o.score >= 50).length;
+
+            if (VIEW_MODE === 'ENTES') renderEntes(container);
+            else if (VIEW_MODE === 'OBRAS') renderObras(container);
+            else if (VIEW_MODE === 'EMPRESAS') renderEmpresas(container);
+            else if (VIEW_MODE === 'SOCIOS') renderSocios(container);
+            
+            lucide.createIcons();
+        }
+
+        // --- RANKING: ENTES FEDERATIVOS ---
+        function renderEntes(container) {
+            const entes = {};
+            DB_OBRAS.forEach(o => {
+                if (!entes[o.municipio]) entes[o.municipio] = { nome: o.municipio, uf: o.uf, obras: 0, risco_total: 0, valor_total: 0 };
+                entes[o.municipio].obras++;
+                entes[o.municipio].risco_total += o.score;
+                entes[o.municipio].valor_total += o.valor;
+            });
+
+            const ranking = Object.values(entes).sort((a, b) => b.risco_total - a.risco_total);
+
+            ranking.forEach((ente, idx) => {
+                container.innerHTML += `
+                    <div class="card p-4 rounded-xl flex items-center gap-4">
+                        <div class="text-2xl font-black text-slate-500 w-8">#${idx+1}</div>
+                        <div class="flex-1">
+                            <h3 class="text-white font-bold text-lg">${ente.nome} <span class="text-xs bg-slate-700 px-1 rounded">${ente.uf}</span></h3>
+                            <div class="text-xs text-slate-400 mt-1">
+                                ${ente.obras} Obras | Vol. Financeiro: <span class="text-emerald-400">${formatMoney(ente.valor_total)}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-2xl font-black text-orange-500">${ente.risco_total}</div>
+                            <div class="text-[9px] uppercase font-bold text-slate-500">Pts Risco</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // --- RANKING: OBRAS ---
+        function renderObras(container) {
+            DB_OBRAS.forEach(obra => {
+                let badge = obra.score >= 50 ? 'badge-critical' : (obra.score >= 20 ? 'badge-medium' : 'badge-low');
+                
+                container.innerHTML += `
+                    <div class="card rounded-xl overflow-hidden flex">
+                        <div class="w-16 ${badge} flex flex-col items-center justify-center text-white shrink-0">
+                            <span class="font-black text-xl">${obra.score}</span>
+                        </div>
+                        <div class="p-3 flex-1 min-w-0">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-[10px] bg-slate-700 text-slate-300 px-1 rounded">${obra.id}</span>
+                                <span class="text-[10px] text-slate-400 truncate">${obra.municipio}</span>
+                            </div>
+                            <h3 class="text-sm font-bold text-white leading-tight truncate mb-2">${obra.nome}</h3>
+                            <div class="flex gap-2 text-[10px] text-slate-400 mb-2">
+                                <div class="flex-1 bg-slate-800 p-1 rounded">Físico: <b class="text-blue-400">${obra.fisico.toFixed(1)}%</b></div>
+                                <div class="flex-1 bg-slate-800 p-1 rounded">Pago: <b class="${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}">${obra.financeiro.toFixed(1)}%</b></div>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                ${obra.flags.map(f => `<span class="text-[9px] border border-red-500/30 text-red-300 px-1 rounded">${f}</span>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // --- RANKING: EMPRESAS ---
+        function renderEmpresas(container) {
+            const ranking = Object.values(DB_EMPRESAS).sort((a, b) => b.risco_acumulado - a.risco_acumulado);
+
+            if (ranking.length === 0) container.innerHTML = `<div class="text-center text-slate-500 py-4">Nenhuma empresa identificada nos contratos.</div>`;
+
+            ranking.forEach(emp => {
+                container.innerHTML += `
+                    <div class="card p-4 rounded-xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="text-white font-bold text-sm">${emp.nome}</h3>
+                                <p class="text-[10px] text-slate-400 font-mono">CNPJ: ${emp.cnpj}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-slate-700 text-white text-[10px] px-2 py-1 rounded font-bold">${emp.total_obras} Obras</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs text-slate-400 bg-slate-800/50 p-2 rounded">
+                            <div>Contratos: <span class="text-emerald-400 block font-bold">${formatMoney(emp.valor_total)}</span></div>
+                            <div>Risco Acumulado: <span class="text-orange-500 block font-bold">${emp.risco_acumulado} Pts</span></div>
+                        </div>
+                        ${emp.socios.length > 0 ? `
+                            <div class="mt-2 pt-2 border-t border-slate-700">
+                                <p class="text-[9px] text-slate-500 uppercase font-bold mb-1">Quadro Societário (QSA)</p>
+                                <div class="flex flex-wrap gap-1">
+                                    ${emp.socios.map(s => `<span class="text-[10px] bg-slate-700 px-1.5 rounded text-slate-300">${s.nome_socio}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+        }
+
+        // --- RANKING: SÓCIOS ---
+        function renderSocios(container) {
+            if (DB_SOCIOS.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <i data-lucide="users" class="w-12 h-12 text-slate-600 mx-auto mb-2"></i>
+                        <p class="text-slate-400 text-sm">Dados de sócios não carregados.</p>
+                        <p class="text-xs text-slate-500 mt-2 max-w-xs mx-auto">Clique no botão <b>"CONSULTAR API (CNPJ)"</b> no topo para buscar o Quadro de Sócios na Receita Federal.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Agrupa sócios por nome (pode haver homônimos, mas é uma aproximação)
+            const mapSocios = {};
+            DB_SOCIOS.forEach(s => {
+                if (!mapSocios[s.nome]) mapSocios[s.nome] = { nome: s.nome, empresas: [], qualificacao: s.qualificacao };
+                mapSocios[s.nome].empresas.push(s.empresa_vinculada);
+            });
+
+            const ranking = Object.values(mapSocios).sort((a, b) => b.empresas.length - a.empresas.length);
+
+            ranking.forEach(socio => {
+                container.innerHTML += `
+                    <div class="card p-3 rounded-xl flex items-center gap-3">
+                        <div class="bg-slate-700 p-2 rounded-full"><i data-lucide="user" class="w-4 h-4 text-slate-300"></i></div>
+                        <div class="flex-1">
+                            <h3 class="text-white font-bold text-sm">${socio.nome}</h3>
+                            <p class="text-[10px] text-slate-400 truncate w-48">${[...new Set(socio.empresas)].join(', ')}</p>
+                        </div>
+                        <div class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 font-bold">
+                            ${socio.empresas.length} Empresas
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // ==========================================
+        // HELPERS
+        // ==========================================
+        function toggleLoading(show, msg) {
+            const el = document.getElementById('loadingOverlay');
+            if(show) {
+                el.classList.remove('hidden');
+                el.classList.add('flex');
+                document.getElementById('loadingText').innerText = msg;
+            } else {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        }
+
+        function parseMoney(val) {
             if (!val) return 0;
             if (typeof val === 'number') return val;
-            // Remove R$, espaços, pontos de milhar e troca vírgula por ponto
             let clean = val.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
-            // Lida com casos de porcentagem
             clean = clean.replace("%", "");
             return parseFloat(clean) || 0;
         }
 
         function parseData(dateStr) {
             if (!dateStr) return null;
-            // Se for número serial do Excel (ex: 44500)
-            if (typeof dateStr === 'number') {
-                return new Date(Math.round((dateStr - 25569)*86400*1000));
-            }
-            // Se for String DD/MM/AAAA ou AAAA-MM-DD
+            if (typeof dateStr === 'number') return new Date(Math.round((dateStr - 25569)*86400*1000));
             const parts = dateStr.split(/[\/\-]/);
             if (parts.length === 3) {
-                if (parts[0].length === 4) return new Date(parts[0], parts[1]-1, parts[2]); // YYYY-MM-DD
-                return new Date(parts[2], parts[1]-1, parts[0]); // DD-MM-YYYY
+                if (parts[0].length === 4) return new Date(parts[0], parts[1]-1, parts[2]);
+                return new Date(parts[2], parts[1]-1, parts[0]);
             }
             return null;
         }
 
-        // ==========================================
-        // 5. RENDERIZAÇÃO
-        // ==========================================
-        function renderizarDashboard() {
-            document.getElementById('loadingOverlay').classList.remove('flex');
-            document.getElementById('loadingOverlay').classList.add('hidden');
-            document.getElementById('mainContent').classList.remove('hidden');
-
-            // Atualiza KPIs
-            document.getElementById('kpiCount').innerText = DATABASE.length;
-            document.getElementById('kpiRisk').innerText = DATABASE.filter(d => d.score >= 50).length;
-            
-            const total = DATABASE.reduce((acc, curr) => acc + curr.valor, 0);
-            document.getElementById('kpiMoney').innerText = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' });
-
-            renderizarLista();
+        function formatMoney(val) {
+            return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' });
         }
-
-        function renderizarLista() {
-            const container = document.getElementById('listaResultados');
-            container.innerHTML = "";
-
-            if (FILTERED.length === 0) {
-                container.innerHTML = `<div class="text-center py-10 text-slate-500">Nenhum resultado para este filtro.</div>`;
-                return;
-            }
-
-            FILTERED.forEach(obra => {
-                let badgeClass = 'badge-low';
-                if (obra.score >= 50) badgeClass = 'badge-critical';
-                else if (obra.score >= 20) badgeClass = 'badge-medium';
-
-                // Bar Widths
-                const fisW = Math.min(obra.fisico, 100);
-                const finW = Math.min(obra.financeiro, 100);
-
-                const html = `
-                    <div class="card rounded-xl p-0 overflow-hidden animate-fade-in">
-                        <div class="flex">
-                            <!-- Score -->
-                            <div class="w-20 bg-slate-800/50 flex flex-col items-center justify-center border-r border-slate-700/50 p-2 shrink-0">
-                                <div class="w-12 h-12 rounded-full ${badgeClass} flex items-center justify-center text-white font-black text-lg shadow-lg mb-1">
-                                    ${obra.score}
-                                </div>
-                                <span class="text-[9px] font-bold text-slate-400 uppercase">Pontos</span>
-                            </div>
-                            
-                            <!-- Info -->
-                            <div class="flex-grow p-3 min-w-0">
-                                <div class="flex justify-between items-start mb-1">
-                                    <span class="bg-slate-700 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">${obra.id}</span>
-                                    <span class="text-[10px] text-slate-400 truncate max-w-[100px]">${obra.municipio}/${obra.uf}</span>
-                                </div>
-                                <h3 class="text-sm font-bold text-white leading-tight mb-3 truncate-2-lines">${obra.nome}</h3>
-                                
-                                <!-- Barras -->
-                                <div class="grid grid-cols-2 gap-3 mb-3">
-                                    <div>
-                                        <div class="flex justify-between text-[10px] text-slate-400 mb-0.5"><span>Físico</span> <span class="text-blue-400 font-bold">${obra.fisico.toFixed(1)}%</span></div>
-                                        <div class="h-1.5 bg-slate-700 rounded-full"><div class="h-full bg-blue-500 rounded-full" style="width:${fisW}%"></div></div>
-                                    </div>
-                                    <div>
-                                        <div class="flex justify-between text-[10px] text-slate-400 mb-0.5"><span>Financeiro</span> <span class="${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'} font-bold">${obra.financeiro.toFixed(1)}%</span></div>
-                                        <div class="h-1.5 bg-slate-700 rounded-full"><div class="h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-emerald-500'} rounded-full" style="width:${finW}%"></div></div>
-                                    </div>
-                                </div>
-
-                                <!-- Flags -->
-                                <div class="flex flex-wrap gap-1">
-                                    ${obra.flags.map(f => `
-                                        <span class="text-[9px] border border-red-500/30 bg-red-500/10 text-red-300 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                            <i data-lucide="alert-circle" class="w-3 h-3"></i> ${f.msg}
-                                        </span>
-                                    `).join('')}
-                                    ${obra.flags.length === 0 ? '<span class="text-[9px] text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">Regular</span>' : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.insertAdjacentHTML('beforeend', html);
-            });
-            
-            lucide.createIcons();
-        }
-
-        // ==========================================
-        // 6. FILTROS VISUAIS
-        // ==========================================
-        window.aplicarFiltro = function(tipo, btn) {
-            // Update botões
-            document.querySelectorAll('.btn-filter').forEach(b => {
-                b.classList.remove('btn-active', 'text-white', 'border-orange-500');
-                b.classList.add('text-slate-400', 'border-slate-700');
-            });
-            btn.classList.add('btn-active', 'text-white');
-            btn.classList.remove('text-slate-400', 'border-slate-700');
-
-            if (tipo === 'TODOS') {
-                FILTERED = [...DATABASE];
-            } else if (tipo === 'PARALISADA') {
-                FILTERED = DATABASE.filter(o => o.status.toLowerCase().includes("parali") || (o.score >= 20 && o.fisico < 5));
-            } else if (tipo === 'FINANCEIRO') {
-                FILTERED = DATABASE.filter(o => (o.financeiro - o.fisico) > 10);
-            } else if (tipo === 'SOCIETARIO') {
-                FILTERED = DATABASE.filter(o => o.flags.some(f => f.tipo === 'SOCIETARIO'));
-            }
-            
-            renderizarLista();
-        }
-
-    </script>
-</body>
-</html>
-
-                <div>
-                    <h1 class="font-black text-white text-lg leading-none tracking-tight">FTC<span class="text-orange-500">GOV</span></h1>
-                    <p class="text-[10px] text-slate-400 font-medium">Auditoria Cidadã</p>
-                </div>
-            </div>
-            <!-- Botão Upload Mobile -->
-            <label for="csvInput" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 cursor-pointer transition shadow-lg shadow-blue-900/40">
-                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
-                <span class="hidden sm:inline">CARREGAR CSVs</span>
-                <span class="sm:hidden">DADOS</span>
-            </label>
-            <input type="file" id="csvInput" multiple accept=".csv" class="hidden" onchange="handleFileUpload(event)">
-        </div>
-    </header>
-
-    <!-- ÁREA DE CONTEÚDO -->
-    <main class="flex-grow p-4 max-w-5xl mx-auto w-full">
-        
-        <!-- ESTADO INICIAL (SEM DADOS) -->
-        <div id="emptyState" class="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-            <div class="bg-slate-800 p-6 rounded-full mb-4 shadow-inner">
-                <i data-lucide="database" class="w-12 h-12 text-slate-600"></i>
-            </div>
-            <h2 class="text-xl font-bold text-white mb-2">Aguardando Base de Dados</h2>
-            <p class="text-slate-400 max-w-xs mx-auto text-sm mb-6">
-                Para iniciar, clique no botão "DADOS" acima e selecione os arquivos CSV exportados do Antonieta/FNDE.
-            </p>
-            <div class="text-xs text-slate-600 bg-slate-900/50 p-3 rounded border border-slate-800">
-                Arquivos suportados: Informações Gerais, Contratação, Pagamentos...
-            </div>
-        </div>
-
-        <!-- CARREGANDO -->
-        <div id="loadingState" class="hidden flex-col items-center justify-center py-20">
-            <div class="spinner mb-4"></div>
-            <p class="text-orange-500 font-bold animate-pulse">Processando e Cruzando Dados...</p>
-            <p class="text-xs text-slate-500 mt-2" id="loadingStatus">Lendo arquivos...</p>
-        </div>
-
-        <!-- DASHBOARD (ESCONDIDO INICIALMENTE) -->
-        <div id="dashboard" class="hidden space-y-6">
-            
-            <!-- KPIs -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="glass p-3 rounded-xl border-l-4 border-blue-500">
-                    <div class="text-[10px] uppercase text-slate-400 font-bold">Obras</div>
-                    <div class="text-2xl font-black text-white" id="kpiTotal">0</div>
-                </div>
-                <div class="glass p-3 rounded-xl border-l-4 border-red-500">
-                    <div class="text-[10px] uppercase text-slate-400 font-bold">Risco Crítico</div>
-                    <div class="text-2xl font-black text-white" id="kpiCritico">0</div>
-                </div>
-                <div class="glass p-3 rounded-xl border-l-4 border-orange-500">
-                    <div class="text-[10px] uppercase text-slate-400 font-bold">Valor Total</div>
-                    <div class="text-lg font-black text-white" id="kpiValor">R$ 0</div>
-                </div>
-                <div class="glass p-3 rounded-xl border-l-4 border-purple-500">
-                    <div class="text-[10px] uppercase text-slate-400 font-bold">Municípios</div>
-                    <div class="text-2xl font-black text-white" id="kpiMun">0</div>
-                </div>
-            </div>
-
-            <!-- FILTROS -->
-            <div class="overflow-x-auto pb-2">
-                <div class="flex gap-2 min-w-max">
-                    <button onclick="filtrar('RANKING', this)" class="btn-filter btn-active px-4 py-2 rounded-lg text-xs font-bold glass flex items-center gap-2">
-                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> RANKING
-                    </button>
-                    <button onclick="filtrar('PARALISADA', this)" class="btn-filter px-4 py-2 rounded-lg text-xs font-bold glass text-slate-400 flex items-center gap-2">
-                        <i data-lucide="alert-circle" class="w-4 h-4"></i> PARALISADAS
-                    </button>
-                    <button onclick="filtrar('FINANCEIRO', this)" class="btn-filter px-4 py-2 rounded-lg text-xs font-bold glass text-slate-400 flex items-center gap-2">
-                        <i data-lucide="dollar-sign" class="w-4 h-4"></i> FINANCEIRO
-                    </button>
-                </div>
-            </div>
-
-            <!-- LISTA DE OBRAS -->
-            <div id="listaObras" class="space-y-4 pb-10">
-                <!-- Itens injetados via JS -->
-            </div>
-        </div>
-    </main>
-
-    <!-- SCRIPT DE LÓGICA (VANILLA JS - RODA EM QUALQUER CELULAR) -->
-    <script>
-        // Inicializa ícones
-        lucide.createIcons();
-
-        // Estado Global da Aplicação
-        let OBRAS_GLOBAIS = [];
-        let OBRAS_FILTRADAS = [];
-
-        // ============================================================
-        // 1. UTILITÁRIOS
-        // ============================================================
-        
-        // Converte string brasileira (1.200,50) para float JS (1200.50)
-        const parseBRL = (valor) => {
-            if (!valor) return 0.0;
-            if (typeof valor === 'number') return valor;
-            const limpo = valor.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
-            return parseFloat(limpo) || 0.0;
-        };
-
-        // Calcula dias entre datas
-        const diffDias = (dataStr) => {
-            if (!dataStr) return 0;
-            const partes = dataStr.split('/'); // Assumindo DD/MM/AAAA ou AAAA-MM-DD
-            let dt;
-            if (partes.length === 3 && partes[2].length === 4) {
-                 dt = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
-            } else {
-                dt = new Date(dataStr);
-            }
-            if (isNaN(dt)) return 0;
-            const diff = new Date() - dt;
-            return Math.floor(diff / (1000 * 60 * 60 * 24));
-        };
-
-        // ============================================================
-        // 2. PROCESSAMENTO DE ARQUIVOS (O CORAÇÃO DO SISTEMA)
-        // ============================================================
-        
-        function handleFileUpload(evt) {
-            const files = evt.target.files;
-            if (!files.length) return;
-
-            document.getElementById('emptyState').classList.add('hidden');
-            document.getElementById('dashboard').classList.add('hidden');
-            document.getElementById('loadingState').classList.remove('hidden');
-            document.getElementById('loadingState').classList.add('flex');
-
-            let filesRead = 0;
-            let rawData = {}; // Armazena dados brutos de cada arquivo
-
-            Array.from(files).forEach(file => {
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    encoding: "ISO-8859-1", // Padrão Excel Brasil
-                    complete: function(results) {
-                        // Tenta adivinhar o tipo do arquivo pelo cabeçalho
-                        const cols = results.meta.fields || [];
-                        const filename = file.name.toLowerCase();
-                        
-                        // Mapeamento baseado nos nomes dos arquivos enviados pelo usuário
-                        if (filename.includes("informações gerais") || cols.includes("Percentual de execução")) {
-                            rawData.geral = results.data;
-                        } else if (filename.includes("contratação") || cols.includes("Empresa contratada")) {
-                            rawData.contrato = results.data;
-                        } else if (filename.includes("repasse") || cols.includes("Valor repassado")) {
-                            rawData.repasse = results.data; // Para financeiro se não tiver pagamentos
-                        } else if (filename.includes("pagamentos") || cols.includes("Valor do pagamento")) {
-                            rawData.pagamentos = results.data;
-                        } else if (filename.includes("dados da prefeitura")) {
-                            rawData.prefeitura = results.data;
-                        }
-
-                        filesRead++;
-                        document.getElementById('loadingStatus').innerText = `Lendo: ${file.name} (${filesRead}/${files.length})`;
-
-                        if (filesRead === files.length) {
-                            processarDadosCruzados(rawData);
-                        }
-                    }
-                });
-            });
-        }
-
-        function processarDadosCruzados(raw) {
-            const mapaObras = {};
-
-            // 1. Base Principal: Informações Gerais
-            const listaBase = raw.geral || raw.contrato || [];
-            if (listaBase.length === 0) {
-                alert("Erro: Arquivo 'Informações Gerais' ou 'Contratação' não identificado. O sistema precisa de uma lista base de obras.");
-                window.location.reload();
-                return;
-            }
-
-            // 2. Construção do Objeto Mestre
-            listaBase.forEach(row => {
-                const id = row["ID da obra"];
-                if (!id) return;
-
-                mapaObras[id] = {
-                    id: id,
-                    nome: row["Nome da obra"] || row["Objeto"] || "Obra sem nome",
-                    municipio: row["Município"] || "N/A",
-                    uf: row["UF"] || "",
-                    status_obra: row["Situação da obra"] || "Desconhecido",
-                    fisico: parseBRL(row["Percentual de execução"] || row["% Medição física acumulada"] || "0"),
-                    financeiro: 0, // Será preenchido depois
-                    valor: 0,
-                    empresa: "Não Informado",
-                    inicio: "",
-                    fim: "",
-                    flags: [],
-                    score: 0
-                };
-            });
-
-            // 3. Enriquecimento com Dados de Contrato
-            if (raw.contrato) {
-                raw.contrato.forEach(row => {
-                    const id = row["ID da obra"];
-                    if (mapaObras[id]) {
-                        mapaObras[id].valor = parseBRL(row["Valor do contrato"]);
-                        mapaObras[id].empresa = row["Empresa contratada"] || mapaObras[id].empresa;
-                        mapaObras[id].inicio = row["Data de início da execução"];
-                        mapaObras[id].fim = row["Data de término do contrato"];
-                    }
-                });
-            }
-
-            // 4. Cálculo Financeiro (Soma de Pagamentos)
-            // Se tiver tabela de pagamentos, somamos por ID
-            if (raw.pagamentos) {
-                const pagamentosPorObra = {};
-                raw.pagamentos.forEach(row => {
-                    const id = row["ID da obra"];
-                    const valor = parseBRL(row["Valor da nota fiscal (R$)"] || row["Valor"]);
-                    if (id) {
-                        pagamentosPorObra[id] = (pagamentosPorObra[id] || 0) + valor;
-                    }
-                });
-                
-                // Calcula % financeiro
-                for (const id in mapaObras) {
-                    const pago = pagamentosPorObra[id] || 0;
-                    const total = mapaObras[id].valor;
-                    if (total > 0) {
-                        mapaObras[id].financeiro = (pago / total) * 100;
-                    }
-                }
-            } else if (raw.geral) {
-                // Tenta pegar de coluna se existir no geral
-                // Algumas planilhas tem "% Financeiro" direto
-            }
-
-            // 5. Motor de Risco (Antonieta Logic)
-            OBRAS_GLOBAIS = Object.values(mapaObras).map(obra => calcularRisco(obra));
-            
-            // Ordena por Risco
-            OBRAS_GLOBAIS.sort((a, b) => b.score - a.score);
-            OBRAS_FILTRADAS = [...OBRAS_GLOBAIS];
-
-            renderizarDashboard();
-        }
-
-        function calcularRisco(obra) {
-            let score = 0;
-            let flags = [];
-            
-            // Tratamento de dados numéricos para display (2 casas decimais)
-            obra.fisico = parseFloat(obra.fisico.toFixed(2));
-            obra.financeiro = parseFloat(obra.financeiro.toFixed(2));
-
-            // [PESO 20] Paralisia
-            const diasObra = diffDias(obra.inicio);
-            if (obra.status_obra.toLowerCase().includes("parali") || (diasObra > 120 && obra.fisico < 5)) {
-                score += 20;
-                flags.push({label: "Paralisia Detectada", cor: "text-red-400"});
-            }
-
-            // [PESO 20] Sobrefaturamento / Avanço Desproporcional
-            if ((obra.financeiro - obra.fisico) > 10) {
-                score += 20;
-                flags.push({label: `Financeiro (${obra.financeiro}%) > Físico (${obra.fisico}%)`, cor: "text-orange-400"});
-            }
-
-            // [PESO 20] Prazo Expirado
-            if (obra.fim) {
-                const diasVencido = diffDias(obra.fim); // se positivo, venceu
-                if (diasVencido > 0 && obra.fisico < 95) {
-                    score += 20;
-                    flags.push({label: "Vigência Expirada", cor: "text-red-400"});
-                }
-            }
-            
-            // [PESO 25] Risco Societário (Heurística simples por nome, já que não temos Capital Social nos CSVs básicos)
-            if (obra.empresa && obra.empresa.toUpperCase().includes("EIRELI") && obra.valor > 1000000) {
-                score += 25;
-                flags.push({label: "EIRELI em Contrato Milionário", cor: "text-purple-400"});
-            }
-
-            obra.score = score;
-            obra.flags = flags;
-            return obra;
-        }
-
-        // ============================================================
-        // 3. RENDERIZAÇÃO (UI)
-        // ============================================================
-
-        function renderizarDashboard() {
-            // Esconde loading, mostra dashboard
-            document.getElementById('loadingState').classList.remove('flex');
-            document.getElementById('loadingState').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-
-            // Atualiza KPIs
-            document.getElementById('kpiTotal').innerText = OBRAS_GLOBAIS.length;
-            document.getElementById('kpiCritico').innerText = OBRAS_GLOBAIS.filter(o => o.score >= 50).length;
-            document.getElementById('kpiMun').innerText = new Set(OBRAS_GLOBAIS.map(o => o.municipio)).size;
-            
-            const totalVal = OBRAS_GLOBAIS.reduce((acc, curr) => acc + curr.valor, 0);
-            document.getElementById('kpiValor').innerText = totalVal.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL', maximumFractionDigits: 0});
-
-            renderizarLista();
-        }
-
-        function renderizarLista() {
-            const container = document.getElementById('listaObras');
-            container.innerHTML = "";
-
-            if (OBRAS_FILTRADAS.length === 0) {
-                container.innerHTML = `<div class="text-center py-10 text-slate-500">Nenhuma obra encontrada neste filtro.</div>`;
-                return;
-            }
-
-            OBRAS_FILTRADAS.forEach(obra => {
-                // Define cor do badge
-                let badgeClass = "risk-low";
-                let riscoTexto = "BAIXO";
-                if (obra.score >= 50) { badgeClass = "risk-high"; riscoTexto = "CRÍTICO"; }
-                else if (obra.score >= 20) { badgeClass = "risk-med"; riscoTexto = "MÉDIO"; }
-
-                const card = document.createElement('div');
-                card.className = "glass rounded-xl overflow-hidden animate-fade-in";
-                
-                // HTML do Card
-                card.innerHTML = `
-                    <div class="flex">
-                        <!-- Coluna Score -->
-                        <div class="w-20 md:w-24 shrink-0 bg-slate-800/50 flex flex-col items-center justify-center border-r border-slate-700/50 p-2">
-                            <div class="w-12 h-12 rounded-full ${badgeClass} flex items-center justify-center text-white font-black text-lg shadow-lg mb-1">
-                                ${obra.score}
-                            </div>
-                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${riscoTexto}</span>
-                        </div>
-                        
-                        <!-- Conteúdo -->
-                        <div class="flex-grow p-4 min-w-0">
-                            <div class="flex items-start justify-between mb-1">
-                                <span class="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-mono">${obra.id}</span>
-                                <span class="text-[10px] text-slate-400 truncate max-w-[100px]">${obra.municipio}/${obra.uf}</span>
-                            </div>
-                            
-                            <h3 class="text-sm md:text-base font-bold text-white leading-tight mb-3 truncate-2-lines">${obra.nome}</h3>
-                            
-                            <!-- Barras de Progresso -->
-                            <div class="space-y-2 mb-3">
-                                <div>
-                                    <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
-                                        <span>Físico</span>
-                                        <span class="text-blue-400 font-bold">${obra.fisico}%</span>
-                                    </div>
-                                    <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                        <div class="h-full bg-blue-500" style="width: ${Math.min(obra.fisico, 100)}%"></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
-                                        <span>Financeiro</span>
-                                        <span class="${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'} font-bold">${obra.financeiro}%</span>
-                                    </div>
-                                    <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                        <div class="h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-emerald-500'}" style="width: ${Math.min(obra.financeiro, 100)}%"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <p class="text-[10px] text-slate-500 truncate mb-2">
-                                <span class="font-bold text-slate-400">Empresa:</span> ${obra.empresa}
-                            </p>
-
-                            <!-- Flags de Risco -->
-                            <div class="flex flex-wrap gap-1">
-                                ${obra.flags.map(f => `
-                                    <span class="text-[9px] border border-slate-700 bg-slate-800/50 px-1.5 py-0.5 rounded ${f.cor} font-medium">
-                                        ⚠ ${f.label}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        // ============================================================
-        // 4. LÓGICA DE FILTRO (UI)
-        // ============================================================
-
-        window.filtrar = function(tipo, btnElement) {
-            // UI Update
-            document.querySelectorAll('.btn-filter').forEach(b => {
-                b.classList.remove('btn-active', 'text-white');
-                b.classList.add('text-slate-400');
-            });
-            btnElement.classList.add('btn-active', 'text-white');
-            btnElement.classList.remove('text-slate-400');
-
-            // Logic
-            if (tipo === 'RANKING') {
-                OBRAS_FILTRADAS = [...OBRAS_GLOBAIS];
-            } else if (tipo === 'PARALISADA') {
-                OBRAS_FILTRADAS = OBRAS_GLOBAIS.filter(o => 
-                    o.status_obra.toLowerCase().includes('parali') || 
-                    (diffDias(o.inicio) > 120 && o.fisico < 5)
-                );
-            } else if (tipo === 'FINANCEIRO') {
-                OBRAS_FILTRADAS = OBRAS_GLOBAIS.filter(o => 
-                    (o.financeiro - o.fisico) > 10
-                );
-            }
-
-            renderizarLista();
-        }
-
-    </script>
-</body>
-</html>
-
-    </style>
-</head>
-<body>
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
-        const { 
-            AlertTriangle, TrendingUp, ShieldAlert, Building2, Search, 
-            FileText, DollarSign, Calendar, MapPin, Eye, X, Filter,
-            BarChart3, CheckCircle2, Siren
-        } = lucide;
-
-        // ==============================================================================
-        // 1. DATA ENGINE - DADOS CRUZADOS DOS ARQUIVOS CSV FORNECIDOS
-        // ==============================================================================
-        // Nota: Extraído dos snippets dos arquivos: Informações Gerais.csv, Contratação.csv e Repasses.csv
-        const RAW_DATA = [
-            {
-                id: "1105233",
-                nome: "Reconstrução Escola Classe 59 de Ceilândia",
-                municipio: "Brasília",
-                uf: "DF",
-                ente: "SECRETARIA DE EDUCACAO DO DISTRITO FEDERAL",
-                cnpj_ente: "00.394.676/0001-07",
-                empresa: "INFRA-ENGETH INFRA-ESTRUTURA CONSTRUCAO E COMERCIO LTDA",
-                cnpj_empresa: "02.237.437/0001-79",
-                valor: 7030380.50,
-                inicio_vigencia: "2023-03-07",
-                fim_vigencia: "2026-02-16",
-                fisico: 96.19,
-                financeiro: 15.00, // Dado do arquivo de Repasse (Discrepância invertida curiosa ou erro de base)
-                status_obra: "Em Execução",
-                status_fnde: "Indeferido", // CSV Históricos: Indeferido recorrente em 2025
-                data_ultimo_pagamento: "22/06/2021",
-                justificativa_aditivo: "Prorrogação de prazo Finalizada"
-            },
-            {
-                id: "1001799",
-                nome: "PAC 2 - CRECHE/PRÉ-ESCOLA 002",
-                municipio: "Barra de São Francisco",
-                uf: "ES",
-                ente: "PREF MUN DE BARRA DE SAO FRANCISCO",
-                cnpj_ente: "27.165.745/0001-67",
-                empresa: "CONSTRUTORA OLIVEIRA LTDA",
-                cnpj_empresa: "09.196.982/0001-03",
-                valor: 1837988.73,
-                inicio_vigencia: "2015-10-15",
-                fim_vigencia: "2023-04-28", // Expirado
-                fisico: 18.07, // CSV Pagamentos: Travado em 18% há anos
-                financeiro: 30.50, // CSV Pagamentos mostra pagamentos antigos somando ~30%
-                status_obra: "Paralisada",
-                status_fnde: "Cancelado",
-                data_ultimo_pagamento: "14/07/2022",
-                justificativa_aditivo: "Atrasos na execução por chuva e adequação de terreno"
-            },
-            {
-                id: "1097774",
-                nome: "Esc. Mun. Profª. Aldamarina de Souza Oliveira",
-                municipio: "Barcelos",
-                uf: "AM",
-                ente: "PREFEITURA MUNICIPAL DE BARCELOS",
-                cnpj_ente: "04.271.037/0001-05",
-                empresa: "RM CONSTRUSERV EIRELI",
-                cnpj_empresa: "40.730.195/0001-40",
-                valor: 2913500.00,
-                inicio_vigencia: "2025-05-19",
-                fim_vigencia: "2026-03-15",
-                fisico: 67.92,
-                financeiro: 100.00, // CSV Repasse FNDE: 100% repassado em empenhos antigos recuperados
-                status_obra: "Em Execução",
-                status_fnde: "Deferido",
-                data_ultimo_pagamento: "28/09/2021",
-                justificativa_aditivo: "-"
-            },
-            {
-                id: "1097824",
-                nome: "Creche Neide Tomaz Avelino",
-                municipio: "Santa Isabel do Rio Negro",
-                uf: "AM",
-                ente: "PREFEITURA MUNICIPAL DE SANTA ISABEL",
-                cnpj_ente: "04.194.239/0001-09",
-                empresa: "CONSTRUTORA LOCAL (DADO FALTANTE)",
-                cnpj_empresa: "NÃO INFORMADO",
-                valor: 1500000.00, // Estimado baseado na tipologia
-                inicio_vigencia: "2023-08-02",
-                fim_vigencia: "2024-08-15",
-                fisico: 18.07, // Travada no início
-                financeiro: 25.00,
-                status_obra: "Obra aprovada",
-                status_fnde: "Deferido",
-                data_ultimo_pagamento: "-",
-                justificativa_aditivo: "-"
-            },
-            {
-                id: "1041572",
-                nome: "Quadra Escolar Coberta com Vestiário",
-                municipio: "Município Exemplo",
-                uf: "BA",
-                ente: "PREF MUN EXEMPLO",
-                cnpj_ente: "99.999.999/0001-99",
-                empresa: "ALADIM CONSTRUCOES E EMPREENDIMENTOS",
-                cnpj_empresa: "48.326.623/0001-85",
-                valor: 509000.00,
-                inicio_vigencia: "2015-04-01",
-                fim_vigencia: "2016-04-01",
-                fisico: 63.24,
-                financeiro: 70.00,
-                status_obra: "Paralisada",
-                status_fnde: "Inadimplente",
-                data_ultimo_pagamento: "04/09/2015",
-                justificativa_aditivo: "-"
-            },
-            {
-                id: "1108645",
-                nome: "Ampliação Escola Municipal Centro",
-                municipio: "Santo Antônio do Içá",
-                uf: "AM",
-                ente: "PREFEITURA MUNICIPAL SAI",
-                cnpj_ente: "04.000.000/0001-00",
-                empresa: "CONSTRUTORA AMAZONAS",
-                cnpj_empresa: "13.694.138/0001-80",
-                valor: 3167407.61,
-                inicio_vigencia: "2022-04-11",
-                fim_vigencia: "2025-04-30",
-                fisico: 45.00,
-                financeiro: 15.00,
-                status_obra: "Em Execução",
-                status_fnde: "Diligência", // Fica indo e voltando (CSV Histórico)
-                data_ultimo_pagamento: "11/04/2022",
-                justificativa_aditivo: "Atrasos nos repasses federais e replanilhamento"
-            }
-        ];
-
-        // ==============================================================================
-        // 2. MOTOR DE RISCO (ALGORITMO ANTONIETA)
-        // ==============================================================================
-        const processarRisco = (obra) => {
-            let score = 0;
-            let flags = [];
-            
-            // Datas
-            const hoje = new Date();
-            const fim = new Date(obra.fim_vigencia);
-            const inicio = new Date(obra.inicio_vigencia);
-            const diasDecorridos = Math.floor((hoje - inicio) / (1000 * 60 * 60 * 24));
-            
-            // [PESO 20] Paralisia Crítica
-            // Lógica: Status "Paralisada" OU <5% execução em 120 dias
-            if (obra.status_obra === "Paralisada" || (diasDecorridos > 120 && obra.fisico < 5)) {
-                score += 20;
-                flags.push({ tipo: "PARALISIA", label: "Obra Paralisada/Estagnada", desc: "Sem evolução física significativa.", peso: 20 });
-            }
-
-            // [PESO 20] Discrepância Financeira (Sobrefaturamento)
-            // Lógica: Financeiro > Físico + 10%
-            if ((obra.financeiro - obra.fisico) > 10) {
-                score += 20;
-                flags.push({ tipo: "FINANCEIRO", label: "Discrepância Financeira", desc: `Pago ${obra.financeiro}% vs Executado ${obra.fisico}%`, peso: 20 });
-            }
-
-            // [PESO 20] Prazo Expirado
-            if (hoje > fim && obra.fisico < 98 && obra.status_obra !== "Concluída") {
-                score += 20;
-                flags.push({ tipo: "PRAZO", label: "Vigência Expirada", desc: "Contrato vencido sem conclusão da obra.", peso: 20 });
-            }
-
-            // [PESO 10] Tramitação FNDE
-            if (['Indeferido', 'Cancelado', 'Inadimplente'].includes(obra.status_fnde)) {
-                score += 10;
-                flags.push({ tipo: "TRAMITACAO", label: `Situação FNDE: ${obra.status_fnde}`, desc: "Pendências administrativas graves.", peso: 10 });
-            }
-
-            // [PESO 25] Risco Societário (Simulação baseada em EIRELI/ME em grandes obras)
-            // No mundo real cruzaria com a API da Receita. Aqui usamos heurística do nome da empresa vs valor.
-            const isEireli = obra.empresa.toUpperCase().includes("EIRELI");
-            const isHighValue = obra.valor > 2000000;
-            
-            if (isEireli && isHighValue) {
-                score += 25;
-                flags.push({ tipo: "SOCIETARIO", label: "Risco Societário", desc: "Empresa individual (EIRELI) em contrato de alto valor.", peso: 25 });
-            }
-            
-            // [PESO 15] Licitação (Falta de dados antigos ou atrasos)
-            if (diasDecorridos > 365 && obra.fisico < 20) {
-                 score += 15;
-                 flags.push({ tipo: "GESTAO", label: "Baixa Eficiência", desc: "Menos de 20% executado em 1 ano.", peso: 15 });
-            }
-
-            return { ...obra, score, flags };
-        };
-
-        // ==============================================================================
-        // 3. COMPONENTES DE UI
-        // ==============================================================================
-
-        const DetailModal = ({ obra, onClose }) => {
-            if (!obra) return null;
-            
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm fade-in">
-                    <div className="bg-slate-900 w-full max-w-3xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-                        
-                        {/* Header Modal */}
-                        <div className="p-6 bg-slate-800 border-b border-slate-700 flex justify-between items-start">
-                            <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded">ID: {obra.id}</span>
-                                    <span className="text-slate-400 text-sm">{obra.municipio}/{obra.uf}</span>
-                                </div>
-                                <h2 className="text-xl font-bold text-white leading-tight">{obra.nome}</h2>
-                            </div>
-                            <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-full text-slate-400 transition">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        {/* Corpo Modal */}
-                        <div className="p-6 space-y-6">
-                            
-                            {/* Score Banner */}
-                            <div className="flex items-center gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black text-white shadow-lg ${obra.score >= 50 ? 'risk-gradient-high' : obra.score >= 20 ? 'risk-gradient-med' : 'risk-gradient-low'}`}>
-                                    {obra.score}
-                                </div>
-                                <div>
-                                    <h3 className="text-white font-bold">Pontuação de Risco</h3>
-                                    <p className="text-slate-400 text-sm">Calculado com base em 6 vetores de análise (FNDE/TCU)</p>
-                                </div>
-                            </div>
-
-                            {/* Detalhes Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <h4 className="text-orange-500 font-bold uppercase text-xs mb-3 flex items-center gap-2">
-                                        <Building2 size={14}/> Dados Contratuais
-                                    </h4>
-                                    <ul className="space-y-3 text-sm text-slate-300">
-                                        <li className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Valor Contrato:</span>
-                                            <span className="font-mono text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(obra.valor)}</span>
-                                        </li>
-                                        <li className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Ente:</span>
-                                            <span className="text-right w-1/2 truncate" title={obra.ente}>{obra.ente}</span>
-                                        </li>
-                                        <li className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Empresa:</span>
-                                            <span className="text-right w-1/2 truncate" title={obra.empresa}>{obra.empresa}</span>
-                                        </li>
-                                        <li className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Vigência:</span>
-                                            <span>{obra.inicio_vigencia} até {obra.fim_vigencia}</span>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <div>
-                                    <h4 className="text-orange-500 font-bold uppercase text-xs mb-3 flex items-center gap-2">
-                                        <Siren size={14}/> Sinais de Alerta Detectados
-                                    </h4>
-                                    {obra.flags.length > 0 ? (
-                                        <div className="space-y-2">
-                                            {obra.flags.map((flag, idx) => (
-                                                <div key={idx} className="bg-red-900/20 border border-red-900/50 p-3 rounded-lg flex gap-3">
-                                                    <AlertTriangle className="text-red-500 shrink-0" size={18} />
-                                                    <div>
-                                                        <p className="text-red-200 font-bold text-xs">{flag.label} (+{flag.peso} pts)</p>
-                                                        <p className="text-red-400 text-xs leading-snug">{flag.desc}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="bg-green-900/20 border border-green-900/50 p-4 rounded-lg text-green-400 text-sm flex items-center gap-2">
-                                            <CheckCircle2 size={18} />
-                                            Nenhum alerta crítico encontrado.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {/* Gráfico de Barras Físico vs Financeiro */}
-                            <div className="bg-slate-800 p-4 rounded-xl">
-                                <h4 className="text-slate-400 text-xs font-bold uppercase mb-4">Evolução da Obra</h4>
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="flex justify-between text-xs text-slate-300 mb-1">
-                                            <span>Execução Física (Vistoria)</span>
-                                            <span>{obra.fisico}%</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500" style={{ width: `${obra.fisico}%` }}></div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-xs text-slate-300 mb-1">
-                                            <span>Execução Financeira (Pagamentos)</span>
-                                            <span>{obra.financeiro}%</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                                            <div className={`h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${obra.financeiro}%` }}></div>
-                                        </div>
-                                        {obra.financeiro > obra.fisico + 10 && (
-                                            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                                                <AlertTriangle size={10} /> Potencial Sobrefaturamento detectado
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const App = () => {
-            const [filtro, setFiltro] = useState('RANKING'); // RANKING, PARALISADA, FINANCEIRO, SOCIETARIO
-            const [busca, setBusca] = useState('');
-            const [selectedObra, setSelectedObra] = useState(null);
-
-            // Processamento dos Dados
-            const dadosProcessados = useMemo(() => {
-                return RAW_DATA.map(processarRisco).sort((a, b) => b.score - a.score);
-            }, []);
-
-            // Lógica de Filtragem
-            const listaExibicao = useMemo(() => {
-                let lista = dadosProcessados.filter(item => 
-                    item.nome.toLowerCase().includes(busca.toLowerCase()) || 
-                    item.municipio.toLowerCase().includes(busca.toLowerCase())
-                );
-
-                if (filtro === 'PARALISADA') {
-                    lista = lista.filter(i => i.flags.some(f => f.tipo === 'PARALISIA' || f.tipo === 'PRAZO'));
-                } else if (filtro === 'FINANCEIRO') {
-                    lista = lista.filter(i => i.flags.some(f => f.tipo === 'FINANCEIRO'));
-                } else if (filtro === 'SOCIETARIO') {
-                    lista = lista.filter(i => i.flags.some(f => f.tipo === 'SOCIETARIO'));
-                }
-                
-                // Se filtro for RANKING, já está ordenado pelo processamento inicial
-                return lista;
-            }, [dadosProcessados, filtro, busca]);
-
-            return (
-                <div className="min-h-screen pb-12 bg-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black">
-                    
-                    {/* Header */}
-                    <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
-                        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2.5 rounded-lg shadow-lg shadow-orange-900/20">
-                                    <Eye className="text-white" size={24} />
-                                </div>
-                                <div>
-                                    <h1 className="text-xl font-black text-white tracking-tight">REVELA<span className="text-orange-500">GOV</span></h1>
-                                    <p className="text-xs text-slate-400 font-medium">Painel de Inteligência e Risco</p>
-                                </div>
-                            </div>
-
-                            <div className="relative w-full md:w-96 group">
-                                <Search className="absolute left-3 top-3 text-slate-500 group-focus-within:text-orange-500 transition-colors" size={18} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Buscar por obra, município ou ID..." 
-                                    value={busca}
-                                    onChange={(e) => setBusca(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-full py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all shadow-inner"
-                                />
-                            </div>
-                        </div>
-                    </header>
-
-                    <main className="max-w-7xl mx-auto px-4 mt-8">
-                        
-                        {/* Dashboard Stats */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                            <div className="glass-panel p-5 rounded-xl">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="bg-blue-500/10 p-2 rounded-lg text-blue-500"><FileText size={20}/></div>
-                                    <span className="text-xs text-slate-500 font-bold uppercase">Total Obras</span>
-                                </div>
-                                <div className="text-3xl font-black text-white">{dadosProcessados.length}</div>
-                            </div>
-                            <div className="glass-panel p-5 rounded-xl border-l-4 border-l-red-500">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="bg-red-500/10 p-2 rounded-lg text-red-500"><Siren size={20}/></div>
-                                    <span className="text-xs text-slate-500 font-bold uppercase">Risco Crítico</span>
-                                </div>
-                                <div className="text-3xl font-black text-white">{dadosProcessados.filter(d => d.score >= 50).length}</div>
-                            </div>
-                            <div className="glass-panel p-5 rounded-xl">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="bg-orange-500/10 p-2 rounded-lg text-orange-500"><DollarSign size={20}/></div>
-                                    <span className="text-xs text-slate-500 font-bold uppercase">Valor Auditado</span>
-                                </div>
-                                <div className="text-3xl font-black text-white">
-                                    {new Intl.NumberFormat('pt-BR', { notation: "compact", style: 'currency', currency: 'BRL' }).format(dadosProcessados.reduce((acc, curr) => acc + curr.valor, 0))}
-                                </div>
-                            </div>
-                            <div className="glass-panel p-5 rounded-xl">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="bg-purple-500/10 p-2 rounded-lg text-purple-500"><MapPin size={20}/></div>
-                                    <span className="text-xs text-slate-500 font-bold uppercase">Municípios</span>
-                                </div>
-                                <div className="text-3xl font-black text-white">{[...new Set(dadosProcessados.map(d => d.municipio))].length}</div>
-                            </div>
-                        </div>
-
-                        {/* Filtros Principais */}
-                        <div className="mb-6">
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <button 
-                                    onClick={() => setFiltro('RANKING')}
-                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'RANKING' ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                                >
-                                    <BarChart3 size={18} /> RANKING DE PONTOS
-                                </button>
-                                <button 
-                                    onClick={() => setFiltro('PARALISADA')}
-                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'PARALISADA' ? 'bg-red-600 text-white shadow-lg shadow-red-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                                >
-                                    <Calendar size={18} /> PARALISADAS / ATRASOS
-                                </button>
-                                <button 
-                                    onClick={() => setFiltro('FINANCEIRO')}
-                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'FINANCEIRO' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                                >
-                                    <DollarSign size={18} /> FINANCEIRO
-                                </button>
-                                <button 
-                                    onClick={() => setFiltro('SOCIETARIO')}
-                                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${filtro === 'SOCIETARIO' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'glass-panel text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                                >
-                                    <ShieldAlert size={18} /> SOCIETÁRIO
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Lista de Resultados */}
-                        <div className="space-y-4 fade-in">
-                            {listaExibicao.length > 0 ? listaExibicao.map((obra) => (
-                                <div key={obra.id} className="glass-panel p-0 rounded-xl hover:border-orange-500/50 transition-colors group">
-                                    <div className="flex flex-col md:flex-row">
-                                        
-                                        {/* Coluna Esquerda: Score */}
-                                        <div className="p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-700 bg-slate-800/30 w-full md:w-32 shrink-0">
-                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-black text-white mb-2 shadow-inner ${obra.score >= 50 ? 'risk-gradient-high' : obra.score >= 20 ? 'risk-gradient-med' : 'risk-gradient-low'}`}>
-                                                {obra.score}
-                                            </div>
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score</span>
-                                        </div>
-
-                                        {/* Coluna Central: Dados */}
-                                        <div className="p-6 flex-grow">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${obra.score >= 50 ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
-                                                    {obra.score >= 50 ? 'Risco Alto' : obra.score >= 20 ? 'Risco Médio' : 'Risco Baixo'}
-                                                </span>
-                                                <span className="text-slate-500 text-xs font-mono">{obra.id}</span>
-                                            </div>
-                                            <h3 className="text-lg font-bold text-white mb-1 leading-snug group-hover:text-orange-400 transition-colors">{obra.nome}</h3>
-                                            <p className="text-sm text-slate-400 flex items-center gap-1 mb-4">
-                                                <MapPin size={12} /> {obra.municipio} - {obra.uf}
-                                            </p>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Evolução Física</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex-grow h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-blue-500" style={{ width: `${obra.fisico}%` }}></div>
-                                                        </div>
-                                                        <span className="text-xs font-bold text-blue-400">{obra.fisico}%</span>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Pagamentos</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex-grow h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                                            <div className={`h-full ${obra.financeiro > obra.fisico + 10 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${obra.financeiro}%` }}></div>
-                                                        </div>
-                                                        <span className={`text-xs font-bold ${obra.financeiro > obra.fisico + 10 ? 'text-red-400' : 'text-emerald-400'}`}>{obra.financeiro}%</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Coluna Direita: Ação */}
-                                        <div className="p-6 flex flex-col justify-center items-end border-t md:border-t-0 md:border-l border-slate-700 bg-slate-800/30 w-full md:w-48 shrink-0">
-                                            <div className="text-right mb-3">
-                                                <div className="text-xs text-slate-500">Contratada</div>
-                                                <div className="text-xs font-bold text-white truncate w-32" title={obra.empresa}>{obra.empresa.substring(0, 20)}...</div>
-                                            </div>
-                                            <button 
-                                                onClick={() => setSelectedObra(obra)}
-                                                className="w-full py-2 bg-slate-700 hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
-                                            >
-                                                ANALISAR <TrendingUp size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Flags Footer */}
-                                    {obra.flags.length > 0 && (
-                                        <div className="px-6 py-3 bg-red-500/5 border-t border-slate-800 flex flex-wrap gap-2">
-                                            {obra.flags.map((f, i) => (
-                                                <span key={i} className="text-[10px] uppercase font-bold text-red-400 flex items-center gap-1 bg-red-900/20 px-2 py-1 rounded">
-                                                    <AlertTriangle size={10} /> {f.label}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )) : (
-                                <div className="text-center py-20">
-                                    <div className="bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <Search size={32} className="text-slate-600" />
-                                    </div>
-                                    <h3 className="text-white font-bold text-lg">Nenhum resultado encontrado</h3>
-                                    <p className="text-slate-500">Tente ajustar os filtros ou a busca.</p>
-                                </div>
-                            )}
-                        </div>
-
-                    </main>
-
-                    {/* Modal */}
-                    {selectedObra && (
-                        <DetailModal obra={selectedObra} onClose={() => setSelectedObra(null)} />
-                    )}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
     </script>
 </body>
 </html>
