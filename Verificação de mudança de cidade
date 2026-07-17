@@ -1,5 +1,5 @@
-//pip install pandas requests beautifulsoup4
-//python auditoria_obras.py
+pip install pandas requests beautifulsoup4
+python auditoria_obras.py
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
