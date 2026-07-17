@@ -2,21 +2,18 @@ pip install pandas requests beautifulsoup4
 python auditoria_obras.py
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 import unicodedata
 import re
-import time
+from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def normalizar_texto(texto):
     """Remove acentos, espaços extras e padroniza para letras minúsculas."""
     if pd.isna(texto):
         return ""
     texto = str(texto).strip().lower()
-    # Remove acentuação (Ex: "Palmas" e "Pálmas" viram "palmas")
     texto = ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
-    # Substitui quebras de linha ou múltiplos espaços por um espaço simples
-    texto = re.sub(r'\s+', ' ', texto)
-    return texto
+    return re.sub(r'\s+', ' ', texto)
 
 def extrair_cidade_simec(url):
     """Faz a requisição para a página pública do SIMEC e localiza o Município."""
@@ -24,32 +21,26 @@ def extrair_cidade_simec(url):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     try:
-        # Timeout longo preventivo, já que sistemas públicos podem oscilar na resposta
-        response = requests.get(url, headers=headers, timeout=20)
+        # Mantivemos um timeout seguro, mas agora as linhas rodam em paralelo
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code != 200:
             return f"Erro HTTP {response.status_code}"
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Estratégia 1: Buscar por rótulos de texto que contenham o termo "Município"
-        # O SIMEC costuma estruturar como "Município: Nome da Cidade - UF"
+        # Estratégia 1: Busca por rótulo "Município"
         for elemento in soup.find_all(text=re.compile(r'Munic[ií]pio', re.IGNORECASE)):
             texto_completo = elemento.parent.get_text()
-            
-            # Tenta capturar o texto que vem logo após o sinal de dois pontos ou hífen
             busca = re.search(r'Munic[ií]pio\s*[:\-]\s*([^-\n\t|]+)', texto_completo, re.IGNORECASE)
             if busca:
                 return busca.group(1).strip()
-                
-            # Estratégia 1b: Se o rótulo estiver isolado, tenta ler o valor do elemento irmão seguinte
             irmao = elemento.find_next()
             if irmao:
                 texto_irmao = irmao.get_text().strip()
                 if texto_irmao and len(texto_irmao) < 60:
-                    # Isola a UF caso venha junta (Ex: "Palmas - TO" vira apenas "Palmas")
                     return texto_irmao.split('-')[0].strip()
 
-        # Estratégia 2: Caso o dado esteja estruturado estritamente dentro de células de tabela (<td>)
+        # Estratégia 2: Busca dentro de tabelas <td>
         for td in soup.find_all('td'):
             conteudo = td.get_text().lower()
             if 'município' in conteudo or 'municipio' in conteudo:
@@ -57,96 +48,91 @@ def extrair_cidade_simec(url):
                 if proximo_td:
                     return proximo_td.get_text().split('-')[0].strip()
                     
-        return "Município não mapeado no HTML"
+        return "Município não mapeado"
         
-    except requests.exceptions.Timeout:
-        return "Erro: Timeout (O servidor do SIMEC demorou a responder)"
     except Exception as e:
-        return f"Erro na requisição: {str(e)}"
+        return f"Erro: {str(e)}"
 
-def verificar_obras():
-    # URL de exportação direta para formato CSV usando o ID da sua planilha pública
+def processar_linha_individual(args):
+    """Função que será executada em paralelo para cada linha da planilha."""
+    linha_excel, cidade_planilha, url_simec, nome_col_cidade = args
+    
+    if pd.isna(url_simec) or not str(url_simec).startswith("http"):
+        return {
+            "Linha": linha_excel,
+            "Cidade Planilha": cidade_planilha,
+            "Cidade SIMEC": "Link ausente/inválido",
+            "Status": "Ignorado"
+        }
+        
+    cidade_simec = extrair_cidade_simec(str(url_simec))
+    cidade_plan_norm = normalizar_texto(cidade_planilha)
+    cidade_simec_norm = normalizar_texto(cidade_simec)
+    
+    if "erro" in cidade_simec_norm or "nao mapeado" in cidade_simec_norm:
+        status = "Erro de Coleta (Verificar Manualmente)"
+    elif cidade_plan_norm == cidade_simec_norm:
+        status = "DADOS COINCIDEM"
+    elif cidade_plan_norm in cidade_simec_norm or cidade_simec_norm in cidade_plan_norm:
+        status = "DIVERGÊNCIA PARCIAL (Revisar UF ou Grafia)"
+    else:
+        status = "DIVERGENTE 🚨"
+        
+    return {
+        "Linha": linha_excel,
+        "Cidade Planilha": cidade_planilha,
+        "Cidade SIMEC": city_simec if (city_simec := cidade_simec) else "Não Encontrado",
+        "Status": status
+    }
+
+def verificar_obras_turbo():
     spreadsheet_id = "1wgzWJliePe9E-18Ckq0c_snVUqZevaXaJHwlbvZnjzw"
     url_planilha = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
     
-    print("📥 Baixando e processando os dados da planilha...")
+    print("📥 Baixando dados da planilha...")
     try:
         df = pd.read_csv(url_planilha)
     except Exception as e:
-        print(f"❌ Erro ao acessar a planilha: {e}")
+        print(f"❌ Erro: {e}")
         return
 
-    # Mapeamento dinâmico baseado em índices absolutos de colunas (0-based)
-    # Coluna D = Índice 3 | Coluna K = Índice 10
-    if len(df.columns) < 11:
-        print("❌ A planilha acessada não possui o número mínimo de colunas necessário (até a coluna K).")
-        return
-        
     nome_col_cidade = df.columns[3]
     nome_col_link = df.columns[10]
     
-    print(f"🔍 Coluna D (Cidade) mapeada como: '{nome_col_cidade}'")
-    print(f"🔍 Coluna K (Link) mapeada como: '{nome_col_link}'")
-    
-    resultados = []
-    
+    # Prepara a lista de tarefas para o pool de threads
+    tarefas = []
     for index, row in df.iterrows():
-        linha_excel = index + 2  # Alinha o índice ao número real da linha visual do Excel/Sheets
-        cidade_planilha = row[nome_col_cidade]
-        url_simec = row[nome_col_link]
+        tarefas.append((index + 2, row[nome_col_cidade], row[nome_col_link], nome_col_cidade))
+    
+    resultados_desordenados = []
+    
+    # --- CONFIGURAÇÃO DE VELOCIDADE ---
+    # max_workers=10 significa 10 requisições simultâneas ao mesmo tempo.
+    MAX_TRABALHADORES = 10 
+    
+    print(f"⚡ Iniciando auditoria TURBO com {MAX_TRABALHADORES} conexões simultâneas...")
+    
+    with ThreadPoolExecutor(max_workers=MAX_TRABALHADORES) as executor:
+        # Dispara todas as linhas para serem processadas em paralelo
+        futuros = {executor.submit(processar_linha_individual, tarefa): tarefa for tarefa in tarefas}
         
-        # Filtro para ignorar linhas sem links válidos ou vazias
-        if pd.isna(url_simec) or not str(url_simec).startswith("http"):
-            resultados.append({
-                "Linha": linha_excel,
-                "Cidade Planilha": cidade_planilha,
-                "Cidade SIMEC": "Link ausente/inválido",
-                "Status": "Ignorado"
-            })
-            continue
-            
-        print(f"⏳ Analisando linha {linha_excel}... Coletando dados do SIMEC...")
-        cidade_simec = extrair_cidade_simec(str(url_simec))
-        
-        # Normalização rigorosa das duas strings antes do cruzamento
-        cidade_plan_norm = normalizar_texto(cidade_planilha)
-        cidade_simec_norm = normalizar_texto(cidade_simec)
-        
-        # Definição dos critérios de consistência de dados
-        if "erro" in cidade_simec_norm or "nao mapeado" in cidade_simec_norm:
-            status = "Erro de Coleta (Verificar Manualmente)"
-        elif cidade_plan_norm == cidade_simec_norm:
-            status = "DADOS COINCIDEM"
-        elif cidade_plan_norm in cidade_simec_norm or cidade_simec_norm in cidade_plan_norm:
-            status = "DIVERGÊNCIA PARCIAL (Revisar UF ou Grafia)"
-        else:
-            status = "DIVERGENTE 🚨"
-            
-        resultados.append({
-            "Linha": linha_excel,
-            "Cidade Planilha": cidade_planilha,
-            "Cidade SIMEC": cidade_simec,
-            "Status": status
-        })
-        
-        # Pausa de 1 segundo entre requisições para evitar sobrecarga ou bloqueio (Rate Limiting) pelo SIMEC
-        time.sleep(1)
-        
-    # Agrupamento e salvamento do relatório final
-    df_resultado = pd.DataFrame(resultados)
-    nome_saida = "relatorio_auditoria_simec.csv"
+        # Conforme cada linha vai terminando, pegamos o resultado
+        for futuro in as_completed(futuros):
+            resultado = futuro.result()
+            resultados_desordenados.append(resultado)
+            print(f"✓ Linha {resultado['Linha']} concluída.")
+
+    # Como o processamento paralelo termina em ordens aleatórias (uma linha leve pode acabar antes de uma pesada),
+    # nós reordenamos os dados pelo número da linha original antes de salvar.
+    resultados_finais = sorted(resultados_desordenados, key=lambda x: x["Linha"])
+    
+    # Salva o arquivo final
+    df_resultado = pd.DataFrame(resultados_finais)
+    nome_saida = "relatorio_auditoria_simec_turbo.csv"
     df_resultado.to_csv(nome_saida, index=False, encoding="utf-8-sig")
     
-    print(f"\n{'-'*40}\n📊 AUDITORIA CONCLUÍDA!")
-    print(f"O arquivo de relatório foi gerado com sucesso: '{nome_saida}'")
-    
-    # Exibe um resumo das inconsistências críticas diretamente na tela
-    divergencias = df_resultado[df_resultado["Status"] == "DIVERGENTE 🚨"]
-    if not divergencias.empty:
-        print(f"\n⚠️ Atenção! Foram identificadas {len(divergencias)} linhas com divergências brutas de município:")
-        print(divergencias[["Linha", "Cidade Planilha", "Cidade SIMEC", "Status"]].to_string(index=False))
-    else:
-        print("\n✅ Nenhuma incompatibilidade crítica encontrada nas linhas analisadas!")
+    print(f"\n{'-'*40}\n📊 AUDITORIA CONCLUÍDA EM ALTA VELOCIDADE!")
+    print(f"Arquivo gerado: '{nome_saida}'")
 
 if __name__ == "__main__":
-    verificar_obras()
+    verificar_obras_turbo()
