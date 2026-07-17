@@ -107,8 +107,8 @@ def verificar_obras_turbo():
     resultados_desordenados = []
     
     # --- CONFIGURAÇÃO DE VELOCIDADE ---
-    # max_workers=10 significa 10 requisições simultâneas ao mesmo tempo.
-    MAX_TRABALHADORES = 10 
+    # max_workers=20 significa 20 requisições simultâneas ao mesmo tempo.
+    MAX_TRABALHADORES = 20 
     
     print(f"⚡ Iniciando auditoria TURBO com {MAX_TRABALHADORES} conexões simultâneas...")
     
