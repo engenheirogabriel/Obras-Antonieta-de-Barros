@@ -1,62 +1,55 @@
 import pandas as pd
 import networkx as nx
+import time
 
-# 1. Carregar o arquivo Excel e suas respectivas abas
+print("1. Carregando os arquivos de dados...")
 file_path = "Distancias entre cidades.xlsx"
 
 df_rotas = pd.read_excel(file_path, sheet_name='rotas_regic2018_brasil')
 df_origem = pd.read_excel(file_path, sheet_name='Cidades origem')
 df_destino = pd.read_excel(file_path, sheet_name='Cidades destino')
 
-# 2. Construir o Grafo de Rotas
-# Para evitar duplicidade de nomes de cidades em estados diferentes, usamos a combinação "Nome - UF"
+print("2. Construindo a malha rodoviária (Grafo)...")
 G = nx.Graph()
-
 for _, row in df_rotas.dropna(subset=['nome_o', 'nome_d', 'km']).iterrows():
     origem_id = f"{row['nome_o'].strip()} - {row['sig_uf_o'].strip()}"
     destino_id = f"{row['nome_d'].strip()} - {row['sig_uf_d'].strip()}"
     
-    # Adiciona ou atualiza a rota mantendo sempre a de menor quilometragem
     if G.has_edge(origem_id, destino_id):
         if row['km'] < G[origem_id][destino_id]['weight']:
             G[origem_id][destino_id]['weight'] = row['km']
     else:
         G.add_edge(origem_id, destino_id, weight=row['km'])
 
-# 3. Preparar as listas de Origens e Destinos formatadas
+# Listas únicas de cidades
 lista_origens = (df_origem['Cidade polo Universidade'].str.strip() + " - " + df_origem['UF'].str.strip()).unique()
 lista_destinos = (df_destino['Municipio'].str.strip() + " - " + df_destino['UF'].str.strip()).unique()
 
-# 4. Calcular os Menores Caminhos (Cruzamento com Interpolação)
+print(f"3. Processando {len(lista_origens)} origens cruzadas com {len(lista_destinos)} destinos...")
+start_time = time.time()
 resultados = []
 
-for orig in lista_origens:
+# O PULO DO GATO: Processar por Origem em lote rápido
+for i, orig in enumerate(lista_origens, 1):
     if orig not in G:
-        print(f"Aviso: Cidade de origem '{orig}' não encontrada na base de rotas.")
         continue
         
+    # Calcula TODOS os menores caminhos a partir desta origem de uma vez só
+    distancias, caminhos = nx.single_source_dijkstra(G, source=orig, weight='weight')
+    
     for dest in lista_destinos:
-        if dest not in G:
-            continue
-            
-        # Tenta calcular o menor caminho via Dijkstra
-        try:
-            # nx.shortest_path_length calcula a menor distância acumulada
-            distancia_total = nx.shortest_path_length(G, source=orig, target=dest, weight='weight')
-            
-            # nx.shortest_path traz a sequência exata de cidades percorridas
-            caminho_cidades = nx.shortest_path(G, source=orig, target=dest, weight='weight')
-            intermediarias = len(caminho_cidades) - 2 # Quantidade de conexões
+        if dest in distancias:
+            caminho_cidades = caminhos[dest]
+            intermediarias = len(caminho_cidades) - 2
             
             resultados.append({
                 'Origem': orig,
                 'Destino': dest,
-                'Distancia_Km': round(distancia_total, 2),
+                'Distancia_Km': round(distancias[dest], 2),
                 'Cidades_no_Caminho': " -> ".join(caminho_cidades),
                 'Conexoes_Intermediarias': max(0, intermediarias)
             })
-        except nx.NetworkXNoPath:
-            # Caso não haja nenhuma interpolação possível que conecte as duas cidades
+        else:
             resultados.append({
                 'Origem': orig,
                 'Destino': dest,
@@ -64,13 +57,14 @@ for orig in lista_origens:
                 'Cidades_no_Caminho': "Sem rota disponível",
                 'Conexoes_Intermediarias': None
             })
+            
+    if i % 50 == 0 or i == len(lista_origens):
+        print(f"   Progresso: {i}/{len(lista_origens)} cidades de origem processadas...")
 
-# 5. Transformar em DataFrame e salvar o resultado
+print("4. Salvando os resultados no Excel (isso pode demorar uns segundos devido ao tamanho do arquivo)...")
 df_resultado_final = pd.DataFrame(resultados)
-
-# Ordenar pelas rotas mais curtas
 df_resultado_final = df_resultado_final.dropna(subset=['Distancia_Km']).sort_values(by='Distancia_Km')
-
-# Salvar em uma nova planilha Excel
 df_resultado_final.to_excel("Menores_Rotas_Cruzadas.xlsx", index=False)
-print("Processamento concluído! O arquivo 'Menores_Rotas_Cruzadas.xlsx' foi gerado com sucesso.")
+
+print(f"\nProcessamento concluído em {((time.time() - start_time)/60):.2f} minutos!")
+print("O arquivo 'Menores_Rotas_Cruzadas.xlsx' foi gerado com sucesso.")
