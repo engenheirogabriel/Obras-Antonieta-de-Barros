@@ -1,0 +1,101 @@
+import pandas as pd
+import networkx as nx
+import time
+
+# --- CONFIGURAÇÃO DE ARQUIVOS ---
+file_path = "Cidades remotas e obras.xlsx"
+output_file = "Resultado_Regioes_Remotas.xlsx"
+
+start_time = time.time()
+
+print("1. Carregando e limpando os dados...")
+df_alvo = pd.read_excel(file_path, sheet_name='alvo')
+df_alvo_uni = pd.read_excel(file_path, sheet_name='alvo universitárias')
+df_rotas = pd.read_excel(file_path, sheet_name='rotas_regic2018_brasil')
+
+# Padronizar chaves de identificação (Cidade - UF)
+df_alvo['Cidade_ID'] = df_alvo['Municipio'].str.strip() + " - " + df_alvo['UF'].str.strip()
+df_alvo_uni['Cidade_ID'] = df_alvo_uni['Municipio'].str.strip() + " - " + df_alvo_uni['UF'].str.strip()
+
+# Identificar cidades "alvo" que NÃO estão presentes em "alvo universitárias"
+df_nao_uni = df_alvo[~df_alvo['Cidade_ID'].isin(df_alvo_uni['Cidade_ID'])].copy()
+cidades_interesse = set(df_nao_uni['Cidade_ID'].tolist())
+dict_obras = df_nao_uni.set_index('Cidade_ID')['Obras alvo'].to_dict()
+
+print(f"   -> Encontradas {len(cidades_interesse)} cidades remotas (sem universidades).")
+
+# Função para limpar a coluna de KM que possui sujeiras textuais e formatos inválidos
+def limpar_quilometragem(val):
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        val = val.replace(',', '.').strip()
+        try:
+            return float(val)
+        except:
+            return None
+    return None
+
+df_rotas['km_limpo'] = df_rotas['km'].apply(limpar_quilometragem)
+df_rotas = df_rotas.dropna(subset=['km_limpo'])
+
+print("2. Construindo a malha de transportes nacional...")
+G = nx.Graph()
+for _, row in df_rotas.iterrows():
+    orig = f"{row['nome_o'].strip()} - {row['sig_uf_o'].strip()}"
+    dest = f"{row['nome_d'].strip()} - {row['sig_uf_d'].strip()}"
+    dist = row['km_limpo']
+    
+    if G.has_edge(orig, dest):
+        if dist < G[orig][dest]['weight']:
+            G[orig][dest]['weight'] = dist
+    else:
+        G.add_edge(orig, dest, weight=dist)
+
+print("3. Agrupando regiões remotas (limite de 20,99 km por interpolação)...")
+# Criamos um grafo secundário apenas para as cidades isoladas de interesse
+G_remoto = nx.Graph()
+G_remoto.add_nodes_from(cidades_interesse)
+
+# Conecta cidades se o menor caminho entre elas no mapa rodoviário for <= 20,99 km
+for cidade in cidades_interesse:
+    if cidade in G:
+        # Busca por Dijkstra limitada pelo teto de 20.99 km (Ultra Rápido)
+        proximas = nx.single_source_dijkstra_path_length(G, source=cidade, cutoff=20.99, weight='weight')
+        for vizinha in proximas:
+            if vizinha in cidades_interesse and vizinha != cidade:
+                G_remoto.add_edge(cidade, vizinha)
+
+# Extrai os agrupamentos/regiões conectadas
+regioes_agrupadas = list(nx.connected_components(G_remoto))
+
+print("4. Modelando e ordenando a estrutura de colunas dinâmicas...")
+dados_finais = []
+for idx, grupo in enumerate(regioes_agrupadas, 1):
+    # Organiza as cidades do grupo da que tem MAIS obras para a que tem menos
+    lista_cidades_ordenada = sorted(list(grupo), key=lambda c: dict_obras.get(c, 0), reverse=True)
+    total_obras_grupo = sum(dict_obras.get(c, 0) for c in lista_cidades_ordenada)
+    
+    linha_dados = {
+        'Região Remota': f"Região {idx}",
+        'Total de Obras da Região': total_obras_grupo
+    }
+    
+    # Preenche as colunas dinâmicas exatamente no formato solicitado
+    for i, cid in enumerate(lista_cidades_ordenada, 1):
+        linha_dados[f'COLUNA cidade {i}'] = cid
+        linha_dados[f'COLUNA obras cidade{i}'] = dict_obras.get(cid, 0)
+        
+    dados_finais.append(linha_dados)
+
+# Gerar DataFrame e ordenar da região com MAIOR volume de obras para a menor
+df_exportar = pd.DataFrame(dados_finais)
+df_exportar = df_exportar.sort_values(by='Total de Obras da Região', ascending=False).reset_index(drop=True)
+
+# Forçar o ID da Região a seguir a nova ordem de relevância de obras
+df_exportar['Região Remota'] = [f"Região Remota {i}" for i in range(1, len(df_exportar) + 1)]
+
+print(f"5. Salvando resultado final em '{output_file}'...")
+df_exportar.to_excel(output_file, index=False)
+
+print(f"\nSucesso! Processamento concluído em {(time.time() - start_time):.2f} segundos.")
