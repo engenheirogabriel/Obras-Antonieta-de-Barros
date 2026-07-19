@@ -1,0 +1,88 @@
+import pandas as pd
+import networkx as nx
+import time
+
+# --- CONFIGURAÇÃO DE ARQUIVOS ---
+file_path = "Cidades voluntários e obras.xlsx"
+output_file = "Resultado_Voluntarios_Proximos.xlsx"
+
+start_time = time.time()
+
+print("1. Carregando e tratando os dados das planilhas...")
+df_alvo = pd.read_excel(file_path, sheet_name='alvo')
+df_voluntarios = pd.read_excel(file_path, sheet_name='voluntários')
+df_rotas = pd.read_excel(file_path, sheet_name='rotas_regic2018_brasil')
+
+# Padronizar chaves textuais (Cidade - UF) para evitar conflitos de nomes iguais
+df_alvo['Cidade_ID'] = df_alvo['Municipio'].str.strip() + " - " + df_alvo['UF'].str.strip()
+df_voluntarios['Cidade_ID'] = df_voluntarios['Nome Municipio'].str.strip() + " - " + df_voluntarios['Sigla Uf'].str.strip()
+
+# Mapeia e conta quantos voluntários residem originalmente em cada cidade
+voluntarios_por_cidade = df_voluntarios['Cidade_ID'].value_counts().to_dict()
+
+# Função de limpeza para a coluna 'km' (remove strings e formatações regionais incorretas)
+def limpar_quilometragem(val):
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        val = val.replace(',', '.').strip()
+        try:
+            return float(val)
+        except:
+            return None
+    return None
+
+df_rotas['km_limpo'] = df_rotas['km'].apply(limpar_quilometragem)
+df_rotas = df_rotas.dropna(subset=['km_limpo'])
+
+print("2. Construindo o grafo da rede de transportes nacional...")
+G = nx.Graph()
+for _, row in df_rotas.iterrows():
+    orig = f"{row['nome_o'].strip()} - {row['sig_uf_o'].strip()}"
+    dest = f"{row['nome_d'].strip()} - {row['sig_uf_d'].strip()}"
+    dist = row['km_limpo']
+    
+    # Mantém a menor distância se houver duplicidade de caminhos
+    if G.has_edge(orig, dest):
+        if dist < G[orig][dest]['weight']:
+            G[orig][dest]['weight'] = dist
+    else:
+        G.add_edge(orig, dest, weight=dist)
+
+print("3. Cruzando cidades com obras e voluntários em um raio de 20,99 km...")
+resultados = []
+cidades_com_obras = df_alvo['Cidade_ID'].unique()
+
+for cidade_obra in cidades_com_obras:
+    # Passo 1: Conta os voluntários que moram na própria cidade da obra (distância 0 km)
+    total_voluntarios_proximos = voluntarios_por_cidade.get(cidade_obra, 0)
+    
+    # Passo 2: Busca vizinhos e interpolações viárias em um raio estrito de 20,99 km
+    if cidade_obra in G:
+        # O parâmetro 'cutoff' faz a busca ignorar caminhos maiores de 20.99km instantaneamente
+        cidades_proximas = nx.single_source_dijkstra_path_length(G, source=cidade_obra, cutoff=20.99, weight='weight')
+        
+        for cid_prox in cidades_proximas:
+            if cid_prox != cidade_obra:  # Evita duplicar a contagem da própria cidade
+                total_voluntarios_proximos += voluntarios_por_cidade.get(cid_prox, 0)
+                
+    # Recuperar a linha original da cidade alvo para preservar colunas
+    row_original = df_alvo[df_alvo['Cidade_ID'] == cidade_obra].iloc[0]
+    
+    resultados.append({
+        'Municipio': row_original['Municipio'],
+        'UF': row_original['UF'],
+        'Obras alvo': row_original['Obras alvo'],
+        'Voluntários Próximos (até 20.99 km)': total_voluntarios_proximos
+    })
+
+# 4. Estruturar e ordenar o DataFrame de saída
+df_resultado_final = pd.DataFrame(resultados)
+
+# Ordena de forma decrescente: as cidades com maior número de voluntários no raio ficam no topo
+df_resultado_final = df_resultado_final.sort_values(by='Voluntários Próximos (até 20.99 km)', ascending=False).reset_index(drop=True)
+
+print(f"4. Salvando dados consolidados em '{output_file}'...")
+df_resultado_final.to_excel(output_file, index=False)
+
+print(f"\nConcluído com sucesso! Relatório gerado em {(time.time() - start_time):.2f} segundos.")
